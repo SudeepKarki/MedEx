@@ -5,7 +5,7 @@ import { OfflineBanner } from "./offline-banner";
 import { ThemeToggle } from "./theme-toggle";
 
 /** Each task branch adds its own entry point here. */
-const NAV_LINKS: { href: string; label: string }[] = [];
+const NAV_LINKS: { href: string; label: string }[] = [{ href: "/book", label: "Book" }];
 
 export function SiteHeader() {
   return (
