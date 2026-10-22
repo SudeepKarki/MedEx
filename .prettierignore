@@ -2,3 +2,5 @@ pnpm-lock.yaml
 data/
 .next/
 src/components/ui/
+# Bodymovin export, minified as After Effects wrote it
+src/components/app/medex-logo-animation.json
