@@ -78,6 +78,11 @@ Every mock endpoint goes through `withMockControls`, which adds realistic latenc
 
 Transient failures (network, timeout, 5xx) are retried automatically once. "Fail once" shows that recovery. "Fail always" shows the error state and its Retry button.
 
+Two more panel features:
+
+- **"Fail 2nd call".** Lets one call through and fails the next, which reproduces "the second of three orders fails".
+- **Scenario failures.** Endpoints can offer named scenarios they implement themselves, such as "order placed, reply lost". Pages can also register **demo actions**, like "Reset demo".
+
 ### Accessibility baseline
 
 - Skip link.
