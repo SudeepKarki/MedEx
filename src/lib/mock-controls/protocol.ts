@@ -31,14 +31,25 @@ export function isLatencyPreset(value: string): value is LatencyPreset {
  * - a number: the server answers with that HTTP status
  * - "network": the request never reaches the server (simulated in the client)
  * - "timeout": the server holds the request longer than the client waits
+ * - any other string: an endpoint-specific scenario the route handler
+ *   implements itself (e.g. "declined-later": a payment that fails after
+ *   the order was accepted). Unknown values are ignored by other endpoints.
  */
-export type FailureKind = number | "network" | "timeout";
+export type FailureKind = number | "network" | "timeout" | (string & {});
 
-export type FailureMode = "off" | "once" | "always";
+/**
+ * - "once": the next call fails, then the endpoint works again
+ * - "second": the next call works, the one after fails (e.g. "the second
+ *   of three orders fails"), then it works again
+ * - "always": every call fails until switched off
+ */
+export type FailureMode = "off" | "once" | "second" | "always";
 
 export interface EndpointRule {
   mode: FailureMode;
   kind: FailureKind;
+  /** Calls still to let through before a "second" rule fires. */
+  skip?: number;
 }
 
 export interface MockEndpointDefinition {
@@ -50,8 +61,14 @@ export interface MockEndpointDefinition {
   failureKinds: readonly FailureKind[];
 }
 
+const FAILURE_KIND_LABELS: Record<string, string> = {
+  network: "Network error",
+  timeout: "Timeout",
+  "declined-later": "Payment fails after processing",
+  "lost-response": "Order placed, reply lost",
+};
+
 export function describeFailureKind(kind: FailureKind): string {
-  if (kind === "network") return "Network error";
-  if (kind === "timeout") return "Timeout";
-  return `HTTP ${kind}`;
+  if (typeof kind === "number") return `HTTP ${kind}`;
+  return FAILURE_KIND_LABELS[kind] ?? kind;
 }

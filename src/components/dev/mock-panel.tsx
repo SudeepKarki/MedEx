@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useDevMetrics } from "@/lib/dev-metrics/store";
+import { useDevActions } from "@/lib/mock-controls/dev-actions";
 import {
   LATENCY_PRESETS,
   describeFailureKind,
@@ -36,6 +37,7 @@ import { useMockControls } from "@/lib/mock-controls/store";
 const FAILURE_MODES: { value: FailureMode; label: string }[] = [
   { value: "off", label: "Works" },
   { value: "once", label: "Fail once" },
+  { value: "second", label: "Fail 2nd call" },
   { value: "always", label: "Fail always" },
 ];
 
@@ -186,6 +188,8 @@ export function MockPanel() {
             })}
           </section>
 
+          <DemoActions />
+
           <PerformanceReadout />
 
           <Button variant="outline" onClick={state.reset} className="self-start">
@@ -195,6 +199,26 @@ export function MockPanel() {
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function DemoActions() {
+  const actions = Object.values(useDevActions((s) => s.actions));
+  if (actions.length === 0) return null;
+  return (
+    <section aria-labelledby="mock-demo" className="flex flex-col gap-2">
+      <h3 id="mock-demo" className="text-sm font-semibold">
+        Demo data
+      </h3>
+      {actions.map((action) => (
+        <div key={action.id} className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">{action.description}</p>
+          <Button variant="outline" size="sm" onClick={() => void action.run()}>
+            {action.label}
+          </Button>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -233,6 +257,5 @@ function PerformanceReadout() {
 }
 
 function parseFailureKind(value: string): FailureKind {
-  if (value === "network" || value === "timeout") return value;
-  return Number(value);
+  return /^\d+$/.test(value) ? Number(value) : value;
 }

@@ -46,7 +46,10 @@ export const useMockControls = create<MockControlsState>()(
         set((state) => {
           const fallbackKind = state.endpoints[endpointId]?.failureKinds[0] ?? 500;
           const current = state.rules[endpointId] ?? { mode: "off", kind: fallbackKind };
-          return { rules: { ...state.rules, [endpointId]: { ...current, ...rule } } };
+          const next = { ...current, ...rule };
+          // Arming "second" lets exactly one call through first
+          if (rule.mode === "second") next.skip = 1;
+          return { rules: { ...state.rules, [endpointId]: next } };
         }),
       registerEndpoints: (definitions) =>
         set((state) => {
@@ -62,7 +65,15 @@ export const useMockControls = create<MockControlsState>()(
       takeFailure: (endpointId) => {
         const rule = get().rules[endpointId];
         if (!rule || rule.mode === "off") return null;
-        if (rule.mode === "once") get().setRule(endpointId, { mode: "off" });
+        if (rule.mode === "second" && (rule.skip ?? 0) > 0) {
+          set((s) => ({
+            rules: { ...s.rules, [endpointId]: { ...rule, skip: (rule.skip ?? 1) - 1 } },
+          }));
+          return null;
+        }
+        if (rule.mode === "once" || rule.mode === "second") {
+          get().setRule(endpointId, { mode: "off" });
+        }
         return rule.kind;
       },
       reset: () => set({ latency: DEFAULT_LATENCY, simulateOffline: false, rules: {} }),
