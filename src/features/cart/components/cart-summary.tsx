@@ -14,7 +14,6 @@ import { CurrencyAmounts } from "./money";
  */
 export function CartSummary({ groups }: { groups: readonly GroupView[] }) {
   const orders = groups.filter((g) => !g.unavailable);
-  const ready = orders.filter((g) => g.blockedBy.length === 0);
   const totals = totalsAcrossGroups(orders);
   const unpriced = orders.reduce((n, g) => n + g.unpricedCount, 0);
   const unavailable = groups.filter((g) => g.unavailable).reduce((n, g) => n + g.itemCount, 0);
@@ -31,7 +30,7 @@ export function CartSummary({ groups }: { groups: readonly GroupView[] }) {
       <ul className="flex flex-col gap-3 text-sm">
         {orders.map((g, i) => (
           <li key={g.type} className="flex items-start justify-between gap-3">
-            <span>
+            <span className="whitespace-nowrap">
               <span className="text-muted-foreground">Order {i + 1}:</span> {g.title}
             </span>
             <span className="text-right">
@@ -88,15 +87,43 @@ export function CartSummary({ groups }: { groups: readonly GroupView[] }) {
         </p>
       )}
 
+      {/* Below lg the sticky bar carries the button; the reasons stay here */}
+      <CheckoutCta groups={groups} buttonClassName="hidden lg:inline-flex" />
+    </section>
+  );
+}
+
+/**
+ * "Check out all 3 orders" / "Check out 2 of 3 orders", with why the rest
+ * aren't ready. Offline it stays put (so nothing jumps) but is disabled.
+ */
+export function CheckoutCta({
+  groups,
+  compact = false,
+  buttonClassName,
+}: {
+  groups: readonly GroupView[];
+  compact?: boolean;
+  buttonClassName?: string;
+}) {
+  const orders = groups.filter((g) => !g.unavailable);
+  const offline = orders.some((g) => g.blockedBy.some((r) => r.kind === "offline"));
+  const ready = orders.filter((g) => g.blockedBy.every((r) => r.kind === "offline"));
+  const disabled = offline || ready.length === 0;
+  const notReady = orders.filter((g) => g.blockedBy.some((r) => r.kind !== "offline"));
+
+  return (
+    <div className="flex flex-col gap-2">
       <Link
         href={`/cart/checkout?groups=${ready.map((g) => g.type).join(",")}`}
-        aria-disabled={ready.length === 0}
-        tabIndex={ready.length === 0 ? -1 : undefined}
-        onClick={(e) => ready.length === 0 && e.preventDefault()}
+        aria-disabled={disabled}
+        tabIndex={disabled ? -1 : undefined}
+        onClick={(e) => disabled && e.preventDefault()}
         className={cn(
           buttonVariants({ size: "lg" }),
           "w-full",
-          ready.length === 0 && "pointer-events-none opacity-50",
+          disabled && "pointer-events-none opacity-50",
+          buttonClassName,
         )}
       >
         {ready.length === orders.length
@@ -104,17 +131,21 @@ export function CartSummary({ groups }: { groups: readonly GroupView[] }) {
           : `Check out ${ready.length} of ${orders.length} orders`}
         <ArrowRightIcon aria-hidden />
       </Link>
-      {ready.length < orders.length && (
-        <ul className="-mt-2 flex flex-col gap-0.5 text-xs text-muted-foreground">
-          {orders
-            .filter((g) => g.blockedBy.length > 0)
-            .map((g) => (
-              <li key={g.type}>
-                {g.title}: {blockMessage(g.blockedBy[0]!).toLowerCase()}
-              </li>
-            ))}
+      {offline && (
+        <p className="text-xs font-medium text-warning-foreground">
+          You&apos;re offline. Your cart is saved; reconnect to check out.
+        </p>
+      )}
+      {!compact && notReady.length > 0 && (
+        <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+          {notReady.map((g) => (
+            <li key={g.type}>
+              {g.title}:{" "}
+              {blockMessage(g.blockedBy.find((r) => r.kind !== "offline")!).toLowerCase()}
+            </li>
+          ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }

@@ -7,7 +7,7 @@ import { useCartSession } from "../state/cart-session";
 import { focusById, usePendingFocus } from "../state/focus-after-removal";
 import { CartGroupCard } from "./cart-group-card";
 import { CartSkeleton } from "./cart-skeleton";
-import { CartSummary } from "./cart-summary";
+import { CartSummary, CheckoutCta } from "./cart-summary";
 import { CheckoutBanner } from "./checkout-banner";
 import { EmptyCart } from "./empty-cart";
 import { MergeSummary } from "./merge-summary";
@@ -60,6 +60,10 @@ export function SignedInCart() {
           </div>
           <div className="lg:sticky lg:top-20">
             <CartSummary groups={groups} />
+          </div>
+          {/* Phones: the summary is far below a long cart, so the action stays in reach */}
+          <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 p-3 backdrop-blur lg:hidden">
+            <CheckoutCta groups={groups} compact />
           </div>
         </div>
       )}

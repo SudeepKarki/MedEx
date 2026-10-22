@@ -20,6 +20,8 @@ export function CartGroupCard({
   orderNumber: { index: number; of: number } | null;
 }) {
   const locked = group.blockedBy.some((r) => r.kind === "in-checkout");
+  // Offline: the cart stays readable, but nothing can be changed or saved.
+  const offline = group.blockedBy.some((r) => r.kind === "offline");
   const ready = group.blockedBy.length === 0;
   const headingId = `group-heading-${group.type}`;
   const note = currencyCountNote(group.subtotals);
@@ -43,7 +45,7 @@ export function CartGroupCard({
             id={headingId}
             tabIndex={-1}
             data-focus-id={`group-${group.type}`}
-            className="font-heading text-lg font-semibold outline-none"
+            className="scroll-mt-24 font-heading text-lg font-semibold outline-none"
           >
             {group.title}
             <span className="ml-2 text-sm font-normal text-muted-foreground">
@@ -69,7 +71,7 @@ export function CartGroupCard({
 
       <ul className="divide-y px-4 py-4 sm:px-5">
         {group.lines.map((line) => (
-          <CartLineItem key={line.id} line={line} groups={groups} locked={locked} />
+          <CartLineItem key={line.id} line={line} groups={groups} locked={locked || offline} />
         ))}
       </ul>
 

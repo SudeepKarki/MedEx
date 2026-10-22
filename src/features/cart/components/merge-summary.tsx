@@ -27,7 +27,7 @@ export function MergeSummary({
           id="merge-heading"
           ref={headingRef}
           tabIndex={-1}
-          className="font-semibold outline-none"
+          className="scroll-mt-24 font-semibold outline-none"
         >
           {mergeHeadline(changes)}
         </h2>

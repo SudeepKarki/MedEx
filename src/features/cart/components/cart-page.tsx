@@ -57,12 +57,12 @@ export function CartPage() {
   const signedIn = useCartSession((s) => s.signedIn);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-8 pb-32 sm:px-6 lg:pb-8">
       <div className="flex flex-col gap-1">
         <h1
           tabIndex={-1}
           data-focus-id="cart-heading"
-          className="font-heading text-2xl font-bold tracking-tight outline-none sm:text-3xl"
+          className="scroll-mt-32 font-heading text-2xl font-bold tracking-tight outline-none sm:text-3xl"
         >
           Your cart
         </h1>

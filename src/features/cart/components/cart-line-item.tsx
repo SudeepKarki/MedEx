@@ -58,7 +58,7 @@ export function CartLineItem({
             <h3
               tabIndex={-1}
               data-focus-id={`line-${line.id}`}
-              className="font-medium outline-none"
+              className="scroll-mt-24 font-medium outline-none"
             >
               Service no longer available
             </h3>
@@ -85,7 +85,7 @@ export function CartLineItem({
           <h3
             tabIndex={-1}
             data-focus-id={`line-${line.id}`}
-            className="leading-snug font-medium outline-none"
+            className="scroll-mt-24 leading-snug font-medium outline-none"
           >
             {product.title}
           </h3>
