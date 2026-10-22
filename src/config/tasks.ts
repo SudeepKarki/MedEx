@@ -33,6 +33,6 @@ export const TASKS: TaskEntry[] = [
     story:
       "“I live in Kathmandu. I'm booking a check-up at a hospital in Bangkok for when I travel there next month. Which time is the appointment, mine or theirs?”",
     branch: "task-3-booking-time-zones",
-    href: null,
+    href: "/book",
   },
 ];

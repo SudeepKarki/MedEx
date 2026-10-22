@@ -8,6 +8,7 @@ import { ThemeToggle } from "./theme-toggle";
 /** Each task branch adds its own entry point here. */
 const NAV_LINKS: { href: string; label: string }[] = [
   { href: "/services", label: "Find services" },
+  { href: "/book", label: "Book" },
 ];
 
 export function SiteHeader() {

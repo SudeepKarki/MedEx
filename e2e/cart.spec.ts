@@ -7,7 +7,7 @@ test.describe.configure({ mode: "serial" });
 const visibleH1 = (page: Page) => page.locator("h1:visible");
 
 async function resetServer(page: Page) {
-  await page.request.post("/api/demo/reset");
+  await page.request.post("/api/demo/reset?scope=cart");
 }
 
 async function serverOrders(page: Page) {

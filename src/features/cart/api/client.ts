@@ -128,5 +128,5 @@ export async function fetchGuestSeed(): Promise<GuestItem[]> {
 }
 
 export async function resetDemo(): Promise<void> {
-  await fetch("/api/demo/reset", { method: "POST" });
+  await fetch("/api/demo/reset?scope=cart", { method: "POST" });
 }
