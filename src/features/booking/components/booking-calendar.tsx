@@ -238,7 +238,11 @@ export function BookingCalendar({
                       choose(date);
                     }}
                     onMouseEnter={() => setInspected(date)}
-                    onFocus={() => setInspected(date)}
+                    onFocus={() => {
+                      // However focus got here (Tab, a screen reader's cursor, a script), this is now the active day
+                      setFocused(date);
+                      setInspected(date);
+                    }}
                     className="group cursor-pointer p-0 outline-none"
                   >
                     <div
