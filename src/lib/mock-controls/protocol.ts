@@ -59,6 +59,8 @@ export interface MockEndpointDefinition {
   label: string;
   /** Failure kinds that make sense for this endpoint; the first is the default. */
   failureKinds: readonly FailureKind[];
+  /** Endpoint-specific wording for a kind, e.g. "Booking made, reply lost". */
+  kindLabels?: Readonly<Record<string, string>>;
 }
 
 const FAILURE_KIND_LABELS: Record<string, string> = {
@@ -68,7 +70,7 @@ const FAILURE_KIND_LABELS: Record<string, string> = {
   "lost-response": "Order placed, reply lost",
 };
 
-export function describeFailureKind(kind: FailureKind): string {
+export function describeFailureKind(kind: FailureKind, endpoint?: MockEndpointDefinition): string {
   if (typeof kind === "number") return `HTTP ${kind}`;
-  return FAILURE_KIND_LABELS[kind] ?? kind;
+  return endpoint?.kindLabels?.[kind] ?? FAILURE_KIND_LABELS[kind] ?? kind;
 }

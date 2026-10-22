@@ -12,6 +12,7 @@ export const BOOKING_ENDPOINTS = {
     id: "booking.create",
     label: "POST /api/bookings",
     failureKinds: [409, "lost-response", 500, "network", "timeout"],
+    kindLabels: { "lost-response": "Booking made, reply lost" },
   },
   move: { id: "booking.move", label: "PUT /api/bookings/:id", failureKinds: [409, 500, "network"] },
   booking: { id: "booking.get", label: "GET /api/bookings/:id", failureKinds: [500, "network"] },

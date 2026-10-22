@@ -177,7 +177,7 @@ export function MockPanel() {
                       <SelectContent>
                         {endpoint.failureKinds.map((kind) => (
                           <SelectItem key={String(kind)} value={String(kind)}>
-                            {describeFailureKind(kind)}
+                            {describeFailureKind(kind, endpoint)}
                           </SelectItem>
                         ))}
                       </SelectContent>
