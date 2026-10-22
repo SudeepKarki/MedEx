@@ -1,6 +1,7 @@
 import { HeartPulseIcon } from "lucide-react";
 import Link from "next/link";
 import { MockPanel } from "@/components/dev/mock-panel";
+import { CartNavLink } from "@/features/cart/components/cart-nav-link";
 import { OfflineBanner } from "./offline-banner";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -33,6 +34,7 @@ export function SiteHeader() {
           </nav>
         )}
         <div className="ml-auto flex items-center gap-1">
+          <CartNavLink />
           <MockPanel />
           <ThemeToggle />
         </div>

@@ -25,7 +25,7 @@ export const TASKS: TaskEntry[] = [
     story:
       "“I put a lab test from one clinic, a facial from a spa, and a check-up package from a hospital in my cart. Then I tried to pay.”",
     branch: "task-2-cart-checkout",
-    href: null,
+    href: "/cart",
   },
   {
     id: "task-3",
