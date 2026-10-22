@@ -27,6 +27,7 @@ import { ClockStrip } from "./clock-strip";
 import { ProviderHeader } from "./provider-header";
 import { SlotPanel, SlotsSkeleton } from "./slot-panel";
 import { PeoplePicker, SpecialistPicker } from "./specialist-picker";
+import { MobileReviewBar } from "./mobile-review-bar";
 import { InlineError } from "./states";
 
 export type FlowMode = { kind: "new" } | { kind: "reschedule"; booking: Booking };
@@ -171,6 +172,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
       : null;
 
   const submitRef = useRef<HTMLButtonElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
   const chooseSlot = (choice: SlotChoice, focusConfirm = false) => {
     form.setValue("slot", choice);
     form.clearErrors("slot");
@@ -319,7 +321,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
           </div>
         </div>
 
-        <aside className="lg:sticky lg:top-20" aria-label="Summary">
+        <aside ref={summaryRef} className="lg:sticky lg:top-20" aria-label="Summary">
           <BookingSummary
             provider={provider}
             date={date}
@@ -347,6 +349,13 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
           />
         </aside>
       </form>
+      {date && slot && !slotProblem && !locked && (
+        <>
+          <MobileReviewBar date={date} startTime={slot.startTime} clocks={clocks} summaryRef={summaryRef} submitRef={submitRef} />
+          {/* room for the bar, so it never covers the end of the page */}
+          <div aria-hidden className="h-16 lg:hidden" />
+        </>
+      )}
     </div>
   );
 }
