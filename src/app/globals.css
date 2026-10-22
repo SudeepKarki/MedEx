@@ -148,7 +148,8 @@
   body {
     @apply bg-background text-foreground;
   }
-  button:not(:disabled), [role="button"]:not(:disabled) {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   html {
@@ -170,5 +171,58 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Two stacked native range inputs acting as one two-thumb slider (RangeSlider) */
+.dual-range {
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+}
+.dual-range::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.dual-range::-moz-range-track {
+  background: transparent;
+}
+.dual-range::-webkit-slider-thumb {
+  appearance: none;
+  pointer-events: auto;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+  cursor: grab;
+}
+.dual-range::-moz-range-thumb {
+  pointer-events: auto;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 2px solid var(--primary);
+  cursor: grab;
+}
+.dual-range:focus-visible {
+  outline: none;
+}
+.dual-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+.dual-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+@media (pointer: coarse) {
+  .dual-range::-webkit-slider-thumb {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .dual-range::-moz-range-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
   }
 }

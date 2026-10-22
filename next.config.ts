@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
+  // Automatic memoisation: unchanged subtrees (results, filter panel) are
+  // skipped while the customer types. See README › Performance.
+  reactCompiler: true,
   partialPrefetching: true,
   turbopack: {
     rules: {

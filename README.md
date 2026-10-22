@@ -24,13 +24,17 @@ Requires Node 20.9+ and pnpm 10.
 | `pnpm dev` | Next.js dev server (Turbopack) |
 | `pnpm build && pnpm start` | Production build |
 | `pnpm test` | Unit and component tests (Vitest) |
+| `pnpm e2e` | Playwright tests against a production build (on `main`, a smoke test of the shell) |
+| `pnpm perf` | Performance budget checks, run on their own (task branches add them) |
 | `pnpm check` | Typecheck, lint and tests together |
+
+Playwright needs a Chromium. Run `pnpm exec playwright install chromium`, or point `PLAYWRIGHT_CHROMIUM_PATH` at one you already have.
 
 ## Stack and why
 
 | Concern | Choice | Why |
 | --- | --- | --- |
-| Framework | **Next.js 16** (App Router, Cache Components) | MedEx's stack. Route handlers make a realistic mock API with no extra tooling. |
+| Framework | **Next.js 16** (App Router, Cache Components, React Compiler) | MedEx's stack. Route handlers make a realistic mock API with no extra tooling. The compiler memoises automatically, so unchanged subtrees skip re-rendering. |
 | UI | **shadcn/ui** on Radix + **Tailwind CSS 4** | Accessible primitives (focus management, ARIA, keyboard) that we own and can change. |
 | Server state | **TanStack Query** | Caching, retries, offline pausing and request de-duplication, so components don't hand-roll them. |
 | Client state | **Zustand** | Small stores that can be read outside React. The API client reads the dev-panel settings this way. |
@@ -44,13 +48,17 @@ Requires Node 20.9+ and pnpm 10.
 src/
   app/                    routes; app/api/* are the mock endpoints
   components/
-    ui/                   shadcn/ui primitives (generated, then adjusted)
+    ui/                   shadcn/ui primitives (generated, then adjusted: memoised cn,
+                          44 px touch targets, indeterminate checkbox, labelled slider thumbs)
+    form/                 lightweight controls for hot paths: native checkbox/radio,
+                          two-thumb native range slider, popover mounted on first open
     app/                  shell: providers, header, live announcer, offline banner
-    dev/                  the "Mock API" panel
+    dev/                  the "Mock API" panel (also shows live performance readouts)
   lib/
     money/                decimal parsing, half-up display rounding, per-currency totals
     api/                  typed fetch client and customer-facing error messages
     mock-controls/        dev-panel ↔ mock-server protocol and store
+    dev-metrics/          timing readouts (e.g. "filter → results painted") for the panel
   server/mock/            server-only: fixture loading, latency/failure wrapper
 data/                     the fictional JSON fixtures from the brief
 ```
@@ -61,7 +69,7 @@ data/                     the fictional JSON fixtures from the brief
 
 Every mock endpoint goes through `withMockControls`, which adds realistic latency (350–900 ms by default) and can fail on demand. You can control it in three ways:
 
-- **In the app:** open the **Mock API** button (bottom left). From there you can:
+- **In the app:** open the **Mock API** button in the header. From there you can:
   - pick a network speed (instant through very slow),
   - simulate being offline,
   - make any endpoint fail once or always, with HTTP 500 (or another status), a network error, or a timeout.
@@ -78,6 +86,16 @@ Transient failures (network, timeout, 5xx) are retried automatically once. "Fail
 - 44 px touch targets on touch screens.
 - `prefers-reduced-motion` respected.
 - AA colour contrast in light and dark themes (ratios are noted in `globals.css`).
+- `app/error.tsx` turns any unexpected render error into a recoverable message instead of a blank page.
+
+### Performance building blocks
+
+These came out of profiling Task 1 (3,200 items, live counts) and are shared so later tasks start fast:
+
+- **Memoised `cn()`.** Re-merging the same Tailwind classes on every render was about 25% of the JavaScript time per interaction.
+- **Native checkboxes and radios** where dozens re-render together. They're cheap, fully accessible, and support `indeterminate`.
+- **A two-thumb slider built from native range inputs.** Radix's slider measures the DOM on mount and forced a page-wide reflow.
+- **Popovers that mount on first open**, for long lists of rows where most are never opened.
 
 ## AI tools
 

@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Geist_Mono } from "next/font/google";
 import { LiveAnnouncer } from "@/components/app/live-announcer";
-import { OfflineBanner } from "@/components/app/offline-banner";
 import { AppProviders } from "@/components/app/providers";
 import { SiteHeader } from "@/components/app/site-header";
 import { SkipLink } from "@/components/app/skip-link";
-import { MockPanel } from "@/components/dev/mock-panel";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -42,13 +40,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-dvh flex-col antialiased">
         <AppProviders>
           <SkipLink />
-          <OfflineBanner />
           <SiteHeader />
           <main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
             {children}
           </main>
           <LiveAnnouncer />
-          <MockPanel />
         </AppProviders>
       </body>
     </html>

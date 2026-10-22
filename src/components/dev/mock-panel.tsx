@@ -23,6 +23,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsClient } from "@/hooks/use-is-client";
+import { useDevMetrics } from "@/lib/dev-metrics/store";
 import {
   LATENCY_PRESETS,
   describeFailureKind,
@@ -54,14 +55,9 @@ export function MockPanel() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="fixed bottom-4 left-4 z-40 shadow-md"
-          aria-label="Open mock API controls"
-        >
+        <Button variant="outline" size="sm" aria-label="Open mock API controls">
           <FlaskConicalIcon aria-hidden />
-          Mock API
+          <span className="hidden sm:inline">Mock API</span>
           {isClient && activeCount > 0 && (
             <Badge variant="secondary" className="ml-1">
               {activeCount}
@@ -190,6 +186,8 @@ export function MockPanel() {
             })}
           </section>
 
+          <PerformanceReadout />
+
           <Button variant="outline" onClick={state.reset} className="self-start">
             <RotateCcwIcon aria-hidden />
             Reset to defaults
@@ -197,6 +195,40 @@ export function MockPanel() {
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function PerformanceReadout() {
+  const metrics = Object.values(useDevMetrics((s) => s.metrics));
+  const reset = useDevMetrics((s) => s.reset);
+  if (metrics.length === 0) return null;
+  return (
+    <section aria-labelledby="mock-perf" className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <h3 id="mock-perf" className="text-sm font-semibold">
+          Performance (this session)
+        </h3>
+        <Button variant="ghost" size="xs" onClick={reset}>
+          Clear
+        </Button>
+      </div>
+      <dl className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 text-xs tabular-nums">
+        <dt className="font-medium text-muted-foreground">Measure</dt>
+        <dd className="font-medium text-muted-foreground">Last</dd>
+        <dd className="font-medium text-muted-foreground">Worst</dd>
+        {metrics.map((m) => (
+          <div key={m.label} className="contents">
+            <dt>{m.label}</dt>
+            <dd className="text-right">
+              {m.value.toFixed(1)} {m.unit}
+            </dd>
+            <dd className="text-right">
+              {m.max.toFixed(1)} {m.unit}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

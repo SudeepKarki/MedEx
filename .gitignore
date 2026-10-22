@@ -58,8 +58,3 @@ Thumbs.db
 # local AI-assistant state (session locks, personal settings)
 .claude/
 CLAUDE.local.md
-
-# original assessment briefs (PDFs): kept locally, not redistributed
-/task_one/
-/task_two/
-/task_three/
