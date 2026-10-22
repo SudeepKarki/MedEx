@@ -112,6 +112,15 @@ export function syncLine(queryClient: QueryClient, lineId: string): Promise<void
           } catch (error) {
             const max = errorBody(error)?.maxQuantity;
             if (max) store().setMax(lineId, max);
+            // Asked for more than the limit (taps are coalesced, so this can be
+            // well past it): settle on the limit rather than snapping back.
+            if (max && sent > max && store().edits[lineId]?.quantity === sent) {
+              const message = `${describeCartError(error, "")} We've set it to ${max}.`;
+              store().setEdit(lineId, { quantity: max });
+              useCartEdits.setState((s) => ({ errors: { ...s.errors, [lineId]: message } }));
+              announce(message, "assertive");
+              continue;
+            }
             const confirmed =
               queryClient.getQueryData<Cart>(CART_KEY)?.lines.find((l) => l.id === lineId)
                 ?.quantity ?? server.quantity;
