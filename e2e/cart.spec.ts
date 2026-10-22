@@ -109,7 +109,7 @@ test("a wellness order can't be checked out until a duration is chosen", async (
   await expect(page.getByRole("link", { name: /Check out all 3 orders/ })).toBeVisible();
 });
 
-test("a failed change rolls back to the saved quantity and says why", async ({ page }) => {
+test("a server error shows what's actually saved instead of guessing", async ({ page }) => {
   await setMockControls(page, {
     latency: "fast",
     rules: { "cart.quantity": { mode: "always", kind: 500 } },
@@ -118,7 +118,7 @@ test("a failed change rolls back to the saved quantity and says why", async ({ p
   const stepper = page.getByRole("group", { name: "Quantity of CBC Profile" });
   await page.getByRole("button", { name: "Add one more CBC Profile" }).click();
   await expect(
-    page.getByRole("main").getByRole("alert").filter({ hasText: "Quantity is back to 1" }),
+    page.getByRole("main").getByRole("alert").filter({ hasText: "Showing what\'s saved" }),
   ).toBeVisible();
   await expect(stepper.locator("output")).toHaveText("1");
 });
@@ -218,4 +218,107 @@ test("orders can use different payment methods", async ({ page }) => {
     "pay at the clinic",
   );
   await expect(page.getByRole("article").filter({ hasText: "Lab tests" })).toContainText("Paid");
+});
+
+test.describe("regressions found in code review", () => {
+  test("an unconfirmed order is never reported as 'not placed', and its items stay locked", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await setMockControls(page, {
+      latency: "fast",
+      rules: { checkout: { mode: "always", kind: "lost-response" } },
+    });
+    await signIn(page);
+    await page.goto("/cart/checkout?groups=package");
+    await page.getByRole("button", { name: "Place order" }).click();
+    // The order IS placed on the server; the browser just never hears back
+    await expect(visibleH1(page)).toHaveText("We're still checking 1 order", { timeout: 30_000 });
+    await expect(page.getByText("wasn't placed")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Done" })).toHaveCount(0);
+
+    // Back in the cart the packages are locked, not editable
+    await page.goto("/cart");
+    await expect(page.getByText("Your checkout is still in progress")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add one more Comprehensive Health Check" }),
+    ).toHaveCount(0); // ordered lines left the cart, or are locked
+
+    // The connection recovers (switched in the Mock API panel, after the last
+    // navigation, since the test's init script re-applies its rules on every load)
+    await page.goto("/cart/checkout");
+    await page.getByRole("button", { name: /mock api controls/i }).click();
+    await page.getByRole("combobox", { name: "POST /api/checkout behaviour" }).click();
+    await page.getByRole("option", { name: "Works" }).click();
+    await page.keyboard.press("Escape");
+    // The resumed runner may get there first; otherwise ask now
+    const placed = visibleH1(page).filter({ hasText: "Your order is placed" });
+    const checkNow = page.getByRole("button", { name: "Check now" });
+    await expect(placed.or(checkNow)).toBeVisible({ timeout: 45_000 });
+    if (await checkNow.isVisible()) await checkNow.click();
+    await expect(visibleH1(page)).toHaveText("Your order is placed", { timeout: 30_000 });
+    expect(await serverOrders(page)).toHaveLength(1);
+  });
+
+  test("a second tab agrees with the first and never duplicates or contradicts it", async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90_000);
+    await signIn(page);
+    await setMockControls(page, { latency: "slow" });
+    await page.goto("/cart/checkout");
+    await page.getByRole("button", { name: "Place 3 orders" }).click();
+    await expect(page.getByText(/Placing order…|Waiting for your bank/).first()).toBeVisible();
+
+    const other = await context.newPage();
+    await other.goto("/cart/checkout");
+    await expect(visibleH1(other)).toHaveText("All 3 orders are placed", { timeout: 60_000 });
+    await expect(visibleH1(page)).toHaveText("All 3 orders are placed", { timeout: 60_000 });
+    await expect(other.getByText("Nothing was charged")).toHaveCount(0);
+    expect(await serverOrders(page)).toHaveLength(3);
+  });
+
+  test("leaving the cart doesn't stop a checkout", async ({ page }) => {
+    test.setTimeout(60_000);
+    await signIn(page);
+    await page.goto("/cart/checkout");
+    await page.getByRole("button", { name: "Place 3 orders" }).click();
+    await page.getByRole("link", { name: "MedEx" }).click(); // to the home page
+    await expect
+      .poll(async () => (await serverOrders(page)).filter((o) => o.status === "paid").length, {
+        timeout: 30_000,
+      })
+      .toBe(3);
+  });
+
+  test("checking out another group after a finished checkout starts a new review", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.goto("/cart/checkout?groups=package");
+    await page.getByRole("button", { name: "Place order" }).click();
+    await expect(visibleH1(page)).toHaveText("Your order is placed", { timeout: 30_000 });
+    await page.goto("/cart");
+    await page.getByRole("link", { name: /Check out lab tests only/ }).click();
+    await expect(visibleH1(page)).toHaveText("Review your order");
+    await expect(page.locator(":focus")).toHaveText("Review your order");
+  });
+
+  test("a removal queued behind a failed change is still sent", async ({ page }) => {
+    await setMockControls(page, {
+      latency: "realistic",
+      rules: { "cart.quantity": { mode: "once", kind: 500 } },
+    });
+    await signIn(page);
+    await page.getByRole("button", { name: "Add one more CBC Profile" }).click();
+    await page.getByRole("button", { name: "Remove CBC Profile" }).click();
+    await expect(page.getByRole("heading", { name: "CBC Profile" })).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const cart = await (await page.request.get("/api/cart")).json();
+        return JSON.stringify(cart).includes("CBC Profile");
+      })
+      .toBe(false);
+  });
 });
