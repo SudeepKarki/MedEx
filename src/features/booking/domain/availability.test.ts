@@ -132,7 +132,7 @@ describe("describeDay", () => {
   });
 
   it("rescheduling: your own slot is shown as yours, and freed for a longer run", () => {
-    const current = new Set([slotKey("wong", m("11:20"))]);
+    const current = { date: "2026-10-26", specialistId: "wong", slotTimes: ["11:20"] };
     const result = day({ date: "2026-10-26", specialistId: "wong", current, people: 1 });
     const slot = result.specialists[0]!.slots.find((s) => toClock(s.startMinutes) === "11:20")!;
     expect(slot).toMatchObject({ state: "current", bookable: false });

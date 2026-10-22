@@ -45,8 +45,15 @@ export interface DayInput {
   people: number;
   /** "specialistId|HH:MM" taken on this date (by anyone). */
   booked: ReadonlySet<string>;
-  /** The customer's own slots when rescheduling: shown as theirs, freed by the move. */
-  current?: ReadonlySet<string>;
+  /** The booking being rescheduled: its slots show as theirs and are freed by the move. */
+  current?: CurrentBooking;
+}
+
+export interface CurrentBooking {
+  date: PlainDate;
+  specialistId: string;
+  /** Every grid start it occupies, first one first. */
+  slotTimes: readonly string[];
 }
 
 export const slotKey = (specialistId: string, startMinutes: number) =>
@@ -69,6 +76,11 @@ export function describeDay(input: DayInput): { status: DayStatus; specialists: 
   const opening = provider.schedule[weekday] ?? null;
   const closure = provider.closures.find((c) => c.date === date);
   const isToday = date === now.today;
+  const inWindow = compareDates(date, window.first) >= 0 && compareDates(date, window.last) <= 0;
+  const mine = input.current?.date === date ? input.current : undefined;
+  const currentKeys = new Set(mine?.slotTimes.map((t) => `${mine.specialistId}|${t}`));
+  // Moving onto exactly where it already is isn't a change, so that start isn't offered
+  const currentStart = mine ? `${mine.specialistId}|${mine.slotTimes[0]}` : null;
 
   const chosen = provider.specialists.filter(
     (s) => !input.specialistId || s.id === input.specialistId,
@@ -77,13 +89,16 @@ export function describeDay(input: DayInput): { status: DayStatus; specialists: 
     const plan = planSlots(specialist.consultation, closure ? null : opening);
     const stateOf = (slot: PlannedSlot): SlotState => {
       const key = slotKey(specialist.id, slot.startMinutes);
-      if (input.current?.has(key)) return "current";
+      if (currentKeys.has(key)) return "current";
       if (input.booked.has(key)) return "booked";
       // A slot that has started (by the provider's clock) can't be booked
-      if (isToday && slot.startMinutes <= now.minutes) return "started";
+      if (compareDates(date, now.today) < 0 || (isToday && slot.startMinutes <= now.minutes)) return "started";
       return "free";
     };
     const states = new Map(plan.offered.map((s) => [s.index, stateOf(s)]));
+    const canStartAt = (s: PlannedSlot) =>
+      states.get(s.index) === "free" ||
+      (states.get(s.index) === "current" && slotKey(specialist.id, s.startMinutes) !== currentStart);
     // Your own current slots are freed by the move, so they count as free for a group
     const starts = groupStarts(
       plan.offered,
@@ -100,7 +115,7 @@ export function describeDay(input: DayInput): { status: DayStatus; specialists: 
         ...s,
         specialistId: specialist.id,
         state: states.get(s.index)!,
-        bookable: starts.has(s.index) && states.get(s.index) === "free",
+        bookable: inWindow && starts.has(s.index) && canStartAt(s),
       })),
     };
   });
@@ -124,7 +139,9 @@ export function describeDay(input: DayInput): { status: DayStatus; specialists: 
       };
     }
     const slots = specialists.flatMap((d) => d.slots);
-    const open = slots.filter((s) => s.state === "free" || s.state === "current");
+    const open = slots.filter(
+      (s) => s.state === "free" || (s.state === "current" && slotKey(s.specialistId, s.startMinutes) !== currentStart),
+    );
     if (open.length === 0) {
       return isToday &&
         slots.some((s) => s.state === "started") &&
