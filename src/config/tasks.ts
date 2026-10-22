@@ -17,7 +17,7 @@ export const TASKS: TaskEntry[] = [
     story:
       "“I need a full-body check-up near Bangkok, under 5,000 THB, and I'd like to compare a few hospitals side by side before I commit.”",
     branch: "task-1-service-explorer",
-    href: null,
+    href: "/services",
   },
   {
     id: "task-2",
