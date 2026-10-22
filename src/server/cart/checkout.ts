@@ -17,6 +17,8 @@ export const checkoutRequestSchema = z.object({
     .min(1),
   paymentMethod: z.enum(["card", "pay_at_clinic"]),
   idempotencyKey: z.string().min(8).max(200),
+  /** Per currency, what the customer saw (decimal strings). A different price is refused. */
+  expectedTotals: z.record(z.string(), z.string()).optional(),
 });
 
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
@@ -43,7 +45,10 @@ export function fingerprint(request: CheckoutRequest): string {
   const items = [...request.items]
     .map((i) => [i.lineId, i.productId, i.quantity, i.wellnessPricingId ?? null])
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-  return JSON.stringify([request.groupType, request.paymentMethod, items]);
+  const expected = Object.entries(request.expectedTotals ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify([request.groupType, request.paymentMethod, items, expected]);
 }
 
 /**
@@ -120,6 +125,17 @@ export function placeOrder(
     totalsMinor[item.currency] = (totalsMinor[item.currency] ?? 0) + item.unitMinor * item.quantity;
   }
 
+  // The customer pays what they saw, or is asked to review: never a silent re-price.
+  if (request.expectedTotals && !sameTotals(request.expectedTotals, totalsMinor)) {
+    return record({
+      status: 409,
+      body: {
+        code: "PRICE_CHANGED",
+        message: "The price of this order changed since you reviewed it.",
+      },
+    });
+  }
+
   const card = request.paymentMethod === "card";
   const order: ServerOrder = {
     orderId: options.newOrderId(),
@@ -142,6 +158,19 @@ export function placeOrder(
   db.revision += 1;
 
   return record({ status: 201, body: orderView(order) });
+}
+
+function sameTotals(
+  expected: Record<string, string>,
+  actualMinor: Record<string, number>,
+): boolean {
+  const currencies = new Set([...Object.keys(expected), ...Object.keys(actualMinor)]);
+  for (const currency of currencies) {
+    const shown = expected[currency];
+    if (shown === undefined || Math.round(Number(shown) * 100) !== actualMinor[currency])
+      return false;
+  }
+  return true;
 }
 
 /** The order must match the cart exactly as the customer reviewed it. */

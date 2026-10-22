@@ -16,7 +16,7 @@ import {
 import { describeApiError } from "@/lib/api/errors";
 import { mergeGuestCart } from "../api/client";
 import { useCartSession } from "../state/cart-session";
-import { CART_KEY } from "../state/line-sync";
+import { applyServerCart } from "../state/line-sync";
 
 /**
  * Demo sign-in: no credentials, just "become the demo customer". Signing in
@@ -29,12 +29,15 @@ export function SignInDialog({ triggerLabel = "Sign in to check out" }: { trigge
   const queryClient = useQueryClient();
   const guestItems = useCartSession((s) => s.guestItems) ?? [];
   const completeSignIn = useCartSession((s) => s.completeSignIn);
+  const ensureMergeKey = useCartSession((s) => s.ensureMergeKey);
 
   const merge = useMutation({
-    mutationFn: () => (guestItems.length ? mergeGuestCart(guestItems) : Promise.resolve(null)),
+    // One key per sign-in attempt series: a retry after a lost reply gets the first report back
+    mutationFn: () =>
+      guestItems.length ? mergeGuestCart(guestItems, ensureMergeKey()) : Promise.resolve(null),
     retry: false,
     onSuccess: (result) => {
-      if (result) queryClient.setQueryData(CART_KEY, result.cart);
+      if (result) applyServerCart(queryClient, result.cart);
       completeSignIn(result?.changes ?? []);
       setOpen(false);
     },

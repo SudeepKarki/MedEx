@@ -66,12 +66,14 @@ export async function addProduct(productId: string): Promise<Cart> {
 
 export async function mergeGuestCart(
   items: GuestItem[],
+  idempotencyKey: string,
 ): Promise<{ cart: Cart; changes: MergeChange[] }> {
   const body = await apiRequest({
     endpoint: E.merge.id,
     path: "/api/cart/merge",
     method: "POST",
-    body: { items },
+    body: { items, idempotencyKey },
+    timeoutMs: 12_000,
   });
   const parsed = parse(mergeResponseSchema, body);
   return { cart: normalizeCart(parsed.cart), changes: parsed.changes };
@@ -81,6 +83,8 @@ export interface CheckoutPayload {
   groupType: string;
   paymentMethod: PaymentMethod;
   idempotencyKey: string;
+  /** What the customer saw, per currency; the server refuses the order if its price differs. */
+  expectedTotals: Record<string, string>;
   items: {
     lineId: string;
     productId: string;

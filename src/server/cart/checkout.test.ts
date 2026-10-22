@@ -146,3 +146,26 @@ describe("readOrder: asynchronous card payments", () => {
     expect(readOrder(db, created.orderId, 9_999_999_999).body).toMatchObject({ status: "pending" });
   });
 });
+
+describe("placeOrder: the customer pays what they saw", () => {
+  it("accepts the order when the totals the customer saw match", () => {
+    const db = testDb();
+    const request = {
+      ...packages("key-llllllll"),
+      expectedTotals: { THB: "15230", INR: "23009.5" },
+    };
+    expect(placeOrder(db, request, options()).status).toBe(201);
+  });
+
+  it("refuses it (409 PRICE_CHANGED) when the price differs, and places nothing", () => {
+    const db = testDb();
+    const request = {
+      ...packages("key-mmmmmmmm"),
+      expectedTotals: { THB: "15000", INR: "23009.5" },
+    };
+    const result = placeOrder(db, request, options());
+    expect(result.status).toBe(409);
+    expect(result.body).toMatchObject({ code: "PRICE_CHANGED" });
+    expect(db.orders.size).toBe(0);
+  });
+});

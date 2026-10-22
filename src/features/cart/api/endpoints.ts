@@ -20,7 +20,7 @@ export const CART_ENDPOINTS = {
   merge: {
     id: "cart.merge",
     label: "POST /api/cart/merge",
-    failureKinds: [500, "network", "timeout"],
+    failureKinds: [500, "lost-response", "network", "timeout"],
   },
   checkout: {
     id: "checkout",

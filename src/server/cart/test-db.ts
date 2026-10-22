@@ -21,6 +21,7 @@ export function testDb(): CartDb {
     revision: 1,
     orders: new Map(),
     idempotency: new Map(),
+    mergeReplays: new Map(),
     guestCart: fixture.guestCart,
   };
 }

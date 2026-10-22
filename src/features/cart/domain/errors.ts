@@ -9,6 +9,7 @@ const CUSTOMER_FACING = new Set([
   "LINE_NOT_FOUND",
   "PAYMENT_DECLINED",
   "CART_CHANGED",
+  "PRICE_CHANGED",
 ]);
 
 export function errorBody(error: unknown) {

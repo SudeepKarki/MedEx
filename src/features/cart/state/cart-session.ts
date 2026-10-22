@@ -15,8 +15,12 @@ interface CartSessionState {
   guestItems: GuestItem[] | null;
   /** What the last merge changed, until the customer dismisses it. */
   mergeChanges: MergeChange[] | null;
+  /** Key for the sign-in merge in progress; reused if it's retried, cleared on success. */
+  mergeKey: string | null;
 
   setGuestItems: (items: GuestItem[]) => void;
+  /** The current merge attempt's key (made once, kept until the merge succeeds). */
+  ensureMergeKey: () => string;
   removeGuestItem: (productId: string) => void;
   completeSignIn: (changes: MergeChange[]) => void;
   dismissMerge: () => void;
@@ -26,18 +30,27 @@ interface CartSessionState {
 
 export const useCartSession = create<CartSessionState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       signedIn: false,
       guestItems: null,
       mergeChanges: null,
+      mergeKey: null,
 
       setGuestItems: (guestItems) => set({ guestItems }),
+      ensureMergeKey: () => {
+        const existing = get().mergeKey;
+        if (existing) return existing;
+        const key = crypto.randomUUID();
+        set({ mergeKey: key });
+        return key;
+      },
       removeGuestItem: (productId) =>
         set((s) => ({ guestItems: (s.guestItems ?? []).filter((i) => i.productId !== productId) })),
-      completeSignIn: (changes) => set({ signedIn: true, guestItems: [], mergeChanges: changes }),
+      completeSignIn: (changes) =>
+        set({ signedIn: true, guestItems: [], mergeChanges: changes, mergeKey: null }),
       dismissMerge: () => set({ mergeChanges: null }),
-      signOut: () => set({ signedIn: false, guestItems: [], mergeChanges: null }),
-      reset: () => set({ signedIn: false, guestItems: null, mergeChanges: null }),
+      signOut: () => set({ signedIn: false, guestItems: [], mergeChanges: null, mergeKey: null }),
+      reset: () => set({ signedIn: false, guestItems: null, mergeChanges: null, mergeKey: null }),
     }),
     { name: "medex.cart-session", version: 1, storage: createJSONStorage(() => localStorage) },
   ),

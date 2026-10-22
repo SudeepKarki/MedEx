@@ -22,6 +22,8 @@ export interface CartDb {
   revision: number;
   orders: Map<string, ServerOrder>;
   idempotency: Map<string, IdempotencyRecord>;
+  /** First response per merge key, replayed on a retried sign-in. */
+  mergeReplays: Map<string, unknown>;
   guestCart: GuestCartItem[];
 }
 
@@ -42,6 +44,7 @@ async function seed(): Promise<CartDb> {
     revision: 1,
     orders: new Map(),
     idempotency: new Map(),
+    mergeReplays: new Map(),
     guestCart: fixture.guestCart,
   };
 }
