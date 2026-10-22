@@ -28,7 +28,7 @@ export function ClockStrip({ clocks, providerName }: { clocks: Clocks; providerN
       <h2 id="clocks-heading" className="sr-only">
         Time zones
       </h2>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
         <Clock
           icon={<Building2Icon aria-hidden className="size-5" />}
           label={`Appointment time · ${clocks.providerLabel}`}
@@ -121,7 +121,7 @@ function Clock({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-xl border p-4",
+        "flex min-w-0 items-start gap-3 rounded-xl border p-4",
         tone === "provider" ? "border-primary/40 bg-accent/60" : "bg-card",
       )}
     >
