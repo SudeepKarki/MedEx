@@ -55,7 +55,7 @@ export function ProviderFacet({
       title="Provider"
       onClear={
         filters.providers.length
-          ? () => onChange({ ...filters, providers: [], page: 1 })
+          ? () => onChange((f) => ({ ...f, providers: [], page: 1 }))
           : undefined
       }
     >
@@ -86,11 +86,11 @@ export function ProviderFacet({
             count={facets.providers.get(provider.id) ?? 0}
             checked={filters.providers.includes(provider.id)}
             onToggle={() =>
-              onChange({
-                ...filters,
-                providers: toggleValue(filters.providers, provider.id),
+              onChange((f) => ({
+                ...f,
+                providers: toggleValue(f.providers, provider.id),
                 page: 1,
-              })
+              }))
             }
           />
         ))}

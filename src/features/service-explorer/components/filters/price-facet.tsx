@@ -45,20 +45,21 @@ export function PriceFacet({
   const groupId = useId();
 
   const setCurrency = (value: string) =>
-    onChange({
-      ...filters,
+    onChange((f) => ({
+      ...f,
       currency: value === ANY ? null : value,
       priceMin: null,
       priceMax: null,
       page: 1,
-    });
+    }));
 
   return (
     <FacetSection
       title="Price"
       onClear={
         filters.currency
-          ? () => onChange({ ...filters, currency: null, priceMin: null, priceMax: null, page: 1 })
+          ? () =>
+              onChange((f) => ({ ...f, currency: null, priceMin: null, priceMax: null, page: 1 }))
           : undefined
       }
       description={
@@ -161,8 +162,15 @@ function CurrencyOption({
 
 const rangeSchema = z
   .object({
-    min: z.string().trim().regex(/^\d*$/, "Use whole numbers, e.g. 1500"),
-    max: z.string().trim().regex(/^\d*$/, "Use whole numbers, e.g. 5000"),
+    // Up to 9 digits: the same limit the URL parser accepts, so nothing typed is silently dropped
+    min: z
+      .string()
+      .trim()
+      .regex(/^\d{0,9}$/, "Use a whole number, e.g. 1500"),
+    max: z
+      .string()
+      .trim()
+      .regex(/^\d{0,9}$/, "Use a whole number, e.g. 5000"),
   })
   .refine(({ min, max }) => !min || !max || Number(min) <= Number(max), {
     message: "The maximum must be at least the minimum",
@@ -189,6 +197,7 @@ function PriceRange({
   const minId = useId();
   const maxId = useId();
   const errorId = useId();
+  const helpId = useId();
 
   const form = useForm<RangeForm>({
     resolver: zodResolver(rangeSchema),
@@ -211,22 +220,26 @@ function PriceRange({
 
   const apply = ([min, max]: [number, number]) => {
     setDragging(null);
-    onChange({
-      ...filters,
+    onChange((f) => ({
+      ...f,
       currency,
       // The slider's ends mean "no limit"
-      priceMin: min <= 0 ? null : min,
-      priceMax: max >= scale.max ? null : max,
+      priceMin: min <= 0 ? null : Math.round(min),
+      priceMax: max >= scale.max ? null : Math.round(max),
       page: 1,
-    });
+    }));
   };
 
-  const submit = form.handleSubmit(({ min, max }) => {
-    const nextMin = fromField(min);
-    const nextMax = fromField(max);
-    if (nextMin === filters.priceMin && nextMax === filters.priceMax) return;
-    onChange({ ...filters, currency, priceMin: nextMin, priceMax: nextMax, page: 1 });
-  });
+  // Writing the same values again is a no-op (identical URLs aren't pushed)
+  const submit = form.handleSubmit(({ min, max }) =>
+    onChange((f) => ({
+      ...f,
+      currency,
+      priceMin: fromField(min),
+      priceMax: fromField(max),
+      page: 1,
+    })),
+  );
 
   const errors = form.formState.errors;
   const error = errors.min?.message ?? errors.max?.message;
@@ -280,7 +293,7 @@ function PriceRange({
           currency={currency}
           placeholder="0"
           invalid={Boolean(errors.min)}
-          errorId={errorId}
+          describedBy={`${errorId} ${helpId}`}
           {...form.register("min", { onBlur: () => void submit() })}
         />
         <RangeInput
@@ -289,7 +302,7 @@ function PriceRange({
           currency={currency}
           placeholder={`${formatCount(scale.max)}+`}
           invalid={Boolean(errors.max)}
-          errorId={errorId}
+          describedBy={`${errorId} ${helpId}`}
           {...form.register("max", { onBlur: () => void submit() })}
         />
         {/* Enter in either field applies the range */}
@@ -297,31 +310,32 @@ function PriceRange({
           Apply price range
         </button>
       </form>
-      <p
-        id={errorId}
-        className={cn("min-h-4 text-xs", error ? "text-destructive" : "text-muted-foreground")}
-        aria-live="polite"
-      >
-        {error ??
-          `Final prices incl. charges. Up to ${formatMoneyWhole(scale.max, currency)} with your other filters.`}
+      {/* Only validation errors are announced; the help text below changes with
+          every filter click and would otherwise compete with the result count. */}
+      <p id={errorId} aria-live="polite" className="text-xs text-destructive empty:hidden">
+        {error}
+      </p>
+      <p id={helpId} className={cn("text-xs text-muted-foreground", error && "hidden")}>
+        Final prices incl. charges. Up to {formatMoneyWhole(scale.max, currency)} with your other
+        filters.
       </p>
     </div>
   );
 }
 
-const RangeInput = function RangeInput({
+function RangeInput({
   id,
   label,
   currency,
   invalid,
-  errorId,
+  describedBy,
   ...props
 }: {
   id: string;
   label: string;
   currency: CurrencyCode;
   invalid: boolean;
-  errorId: string;
+  describedBy: string;
 } & React.ComponentProps<"input">) {
   return (
     <div className="flex flex-col gap-1">
@@ -331,12 +345,13 @@ const RangeInput = function RangeInput({
       <input
         id={id}
         inputMode="numeric"
+        maxLength={9}
         autoComplete="off"
         aria-invalid={invalid}
-        aria-describedby={errorId}
+        aria-describedby={describedBy}
         className="h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-base tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 pointer-coarse:h-11"
         {...props}
       />
     </div>
   );
-};
+}

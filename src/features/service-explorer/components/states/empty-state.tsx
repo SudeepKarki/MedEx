@@ -9,6 +9,7 @@ import {
   type ExplorerFilters,
   type FacetId,
 } from "../../domain/filters";
+import type { FilterUpdate } from "../../hooks/use-url-filters";
 
 const SUGGESTION_LABELS: Record<FacetId, (f: ExplorerFilters) => string> = {
   q: (f) => `Clear the search “${f.q.trim()}”`,
@@ -33,7 +34,7 @@ export function EmptyState({
 }: {
   filters: ExplorerFilters;
   view: ExplorerView;
-  onChange: (next: ExplorerFilters) => void;
+  onChange: (update: FilterUpdate) => void;
 }) {
   const suggestions = activeFacets(filters)
     .map((facet) => ({ facet, count: view.withoutFacet[facet] }))
@@ -58,7 +59,7 @@ export function EmptyState({
               <Button
                 variant="outline"
                 className="w-full justify-between"
-                onClick={() => onChange(clearFacet(filters, facet))}
+                onClick={() => onChange((f) => clearFacet(f, facet))}
               >
                 {SUGGESTION_LABELS[facet](filters)}
                 <span className="text-muted-foreground tabular-nums">
@@ -69,7 +70,7 @@ export function EmptyState({
           ))}
         </ul>
       )}
-      <Button variant="link" onClick={() => onChange(clearAllFilters(filters))}>
+      <Button variant="link" onClick={() => onChange(clearAllFilters)}>
         Clear all filters
       </Button>
     </div>

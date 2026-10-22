@@ -1,37 +1,41 @@
 "use client";
 
 import { XIcon } from "lucide-react";
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { currencyName, formatMoneyWhole } from "@/lib/money";
 import {
   clearAllFilters,
-  toggleCity,
-  toggleCountry,
-  toggleValue,
   toggleCategory,
+  toggleCity,
   type ExplorerFilters,
 } from "../domain/filters";
 import { SERVICE_TYPE_LABELS } from "../domain/labels";
 import type { Catalog } from "../domain/types";
+import type { FilterUpdate } from "../hooks/use-url-filters";
+
+// Chip removals *remove*, they never toggle: pressing a chip twice before the
+// list re-renders must not put the filter back.
+const without = <T,>(values: readonly T[], value: T) => values.filter((v) => v !== value);
 
 interface Chip {
   key: string;
   label: string;
-  remove: () => ExplorerFilters;
+  /** Applied to the latest filters when the chip is removed. */
+  remove: FilterUpdate;
 }
 
 function buildChips(filters: ExplorerFilters, catalog: Catalog): Chip[] {
   const chips: Chip[] = [];
   const f = filters;
   if (f.q.trim())
-    chips.push({ key: "q", label: `“${f.q.trim()}”`, remove: () => ({ ...f, q: "", page: 1 }) });
+    chips.push({ key: "q", label: `“${f.q.trim()}”`, remove: (g) => ({ ...g, q: "", page: 1 }) });
   for (const code of f.countries) {
     const country = catalog.countries.find((c) => c.code === code);
     chips.push({
       key: `country:${code}`,
       label: country?.name ?? code,
-      remove: () => toggleCountry(f, code),
+      remove: (g) => ({ ...g, countries: without(g.countries, code), page: 1 }),
     });
   }
   for (const key of f.cities) {
@@ -40,14 +44,17 @@ function buildChips(filters: ExplorerFilters, catalog: Catalog): Chip[] {
     chips.push({
       key: `city:${key}`,
       label: city?.name ?? key,
-      remove: () => toggleCity(f, key, country?.cities.map((c) => c.key) ?? []),
+      remove: (g) =>
+        g.cities.includes(key) || g.countries.includes(key.slice(0, 2))
+          ? toggleCity(g, key, country?.cities.map((c) => c.key) ?? [])
+          : g,
     });
   }
   for (const type of f.types) {
     chips.push({
       key: `type:${type}`,
       label: SERVICE_TYPE_LABELS[type].plural,
-      remove: () => ({ ...f, types: toggleValue(f.types, type), page: 1 }),
+      remove: (g) => ({ ...g, types: without(g.types, type), page: 1 }),
     });
   }
   if (f.currency) {
@@ -64,7 +71,7 @@ function buildChips(filters: ExplorerFilters, catalog: Catalog): Chip[] {
     chips.push({
       key: "price",
       label,
-      remove: () => ({ ...f, currency: null, priceMin: null, priceMax: null, page: 1 }),
+      remove: (g) => ({ ...g, currency: null, priceMin: null, priceMax: null, page: 1 }),
     });
   }
   for (const key of f.categories) {
@@ -79,7 +86,7 @@ function buildChips(filters: ExplorerFilters, catalog: Catalog): Chip[] {
       label: duplicateTitle
         ? `${category.title} (${SERVICE_TYPE_LABELS[category.type].plural})`
         : category.title,
-      remove: () => toggleCategory(f, key),
+      remove: (g) => (g.categories.includes(key) ? toggleCategory(g, key) : g),
     });
   }
   for (const key of f.subcategories) {
@@ -89,21 +96,21 @@ function buildChips(filters: ExplorerFilters, catalog: Catalog): Chip[] {
     chips.push({
       key: `sub:${key}`,
       label: parent ? `${parent.title} › ${sub.title}` : sub.title,
-      remove: () => ({ ...f, subcategories: toggleValue(f.subcategories, key), page: 1 }),
+      remove: (g) => ({ ...g, subcategories: without(g.subcategories, key), page: 1 }),
     });
   }
   if (f.homeTest) {
     chips.push({
       key: "home",
       label: "Home test",
-      remove: () => ({ ...f, homeTest: false, page: 1 }),
+      remove: (g) => ({ ...g, homeTest: false, page: 1 }),
     });
   }
   for (const id of f.providers) {
     chips.push({
       key: `provider:${id}`,
       label: catalog.providers.get(id)?.name ?? `Provider #${id}`,
-      remove: () => ({ ...f, providers: toggleValue(f.providers, id), page: 1 }),
+      remove: (g) => ({ ...g, providers: without(g.providers, id), page: 1 }),
     });
   }
   return chips;
@@ -113,13 +120,32 @@ export function ActiveFilterChips({
   filters,
   catalog,
   onChange,
+  onAllRemoved,
 }: {
   filters: ExplorerFilters;
   catalog: Catalog;
-  onChange: (next: ExplorerFilters) => void;
+  onChange: (update: FilterUpdate) => void;
+  /** Where focus goes when the last chip disappears. */
+  onAllRemoved: () => void;
 }) {
   const chips = buildChips(filters, catalog);
   const listRef = useRef<HTMLUListElement>(null);
+
+  // Keep keyboard focus in the chip row after a removal: move it to the chip
+  // that takes the removed one's place (or the previous one). This must wait
+  // until the new chip list is committed, which happens after the URL
+  // transition, so the target is remembered and applied in a layout effect.
+  const pendingFocus = useRef<number | null>(null);
+  const chipKeys = chips.map((c) => c.key).join("|");
+  useLayoutEffect(() => {
+    const index = pendingFocus.current;
+    if (index === null) return;
+    pendingFocus.current = null;
+    const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>("button");
+    if (buttons?.length) buttons[Math.min(index, buttons.length - 1)]?.focus();
+    else onAllRemoved();
+  }, [chipKeys, onAllRemoved]);
+
   // The row keeps its height when empty, so adding the first filter doesn't
   // push the results down (layout shift).
   if (chips.length === 0) {
@@ -131,14 +157,8 @@ export function ActiveFilterChips({
   }
 
   const remove = (index: number) => {
-    onChange(chips[index]!.remove());
-    // Keep keyboard focus in the chip row: move to the chip that takes this
-    // one's place, or to "Clear all" when it was the last.
-    requestAnimationFrame(() => {
-      const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>("button");
-      if (!buttons?.length) return;
-      buttons[Math.min(index, buttons.length - 1)]?.focus();
-    });
+    pendingFocus.current = index;
+    onChange(chips[index]!.remove);
   };
 
   return (
@@ -165,7 +185,10 @@ export function ActiveFilterChips({
               variant="link"
               size="sm"
               className="h-8"
-              onClick={() => onChange(clearAllFilters(filters))}
+              onClick={() => {
+                pendingFocus.current = 0;
+                onChange(clearAllFilters);
+              }}
             >
               Clear all
             </Button>

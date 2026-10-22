@@ -18,6 +18,7 @@ import { formatCount } from "@/lib/money";
 import { computeView, type ExplorerIndex } from "../domain/engine";
 import { activeFacets, clearAllFilters, type ExplorerFilters } from "../domain/filters";
 import { pluralize } from "../domain/labels";
+import type { FilterUpdate } from "../hooks/use-url-filters";
 import { FilterPanel } from "./filters/filter-panel";
 
 const FILTER_KEYS = [
@@ -57,9 +58,12 @@ export function MobileFilterDrawer({
   const preview = useMemo(() => (open ? computeView(index, draft) : null), [open, index, draft]);
   const activeCount = activeFacets(filters).filter((f) => f !== "q").length;
 
-  const setDraft = (next: ExplorerFilters) => {
+  // Facets send updaters; here they apply to the draft form, not the URL.
+  const updateDraft = (update: FilterUpdate) => {
+    const current = form.getValues();
+    const next = update(current);
     for (const key of FILTER_KEYS) {
-      if (next[key] !== draft[key]) form.setValue(key, next[key], { shouldDirty: true });
+      if (next[key] !== current[key]) form.setValue(key, next[key], { shouldDirty: true });
     }
   };
 
@@ -104,7 +108,7 @@ export function MobileFilterDrawer({
               filters={draft}
               facets={preview.facets}
               catalog={index.catalog}
-              onChange={setDraft}
+              onChange={updateDraft}
             />
           )}
         </div>
@@ -112,7 +116,7 @@ export function MobileFilterDrawer({
           <Button
             variant="ghost"
             size="lg"
-            onClick={() => setDraft(clearAllFilters(draft))}
+            onClick={() => updateDraft(clearAllFilters)}
             disabled={activeFacets(draft).length === 0}
           >
             Clear all

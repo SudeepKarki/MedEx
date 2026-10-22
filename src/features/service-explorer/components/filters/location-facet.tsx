@@ -22,7 +22,7 @@ export function LocationFacet({
     <FacetSection
       title="Location"
       onClear={
-        active ? () => onChange({ ...filters, countries: [], cities: [], page: 1 }) : undefined
+        active ? () => onChange((f) => ({ ...f, countries: [], cities: [], page: 1 })) : undefined
       }
     >
       {catalog.countries.map((country) => {
@@ -35,7 +35,7 @@ export function LocationFacet({
               label={<span className="font-medium">{country.name}</span>}
               count={facets.countries.get(country.code) ?? 0}
               checked={countrySelected ? true : someCities ? "indeterminate" : false}
-              onToggle={() => onChange(toggleCountry(filters, country.code))}
+              onToggle={() => onChange((f) => toggleCountry(f, country.code))}
             />
             <div className="ml-5 border-l pl-2">
               {country.cities.map((city) => (
@@ -44,7 +44,7 @@ export function LocationFacet({
                   label={city.name}
                   count={facets.cities.get(city.key) ?? 0}
                   checked={countrySelected || filters.cities.includes(city.key)}
-                  onToggle={() => onChange(toggleCity(filters, city.key, cityKeys))}
+                  onToggle={() => onChange((f) => toggleCity(f, city.key, cityKeys))}
                 />
               ))}
             </div>

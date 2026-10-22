@@ -19,7 +19,7 @@ export function TypeFacet({
     <FacetSection
       title="Service type"
       onClear={
-        filters.types.length ? () => onChange({ ...filters, types: [], page: 1 }) : undefined
+        filters.types.length ? () => onChange((f) => ({ ...f, types: [], page: 1 })) : undefined
       }
     >
       {SERVICE_TYPES.map((type) => (
@@ -28,9 +28,7 @@ export function TypeFacet({
           label={SERVICE_TYPE_LABELS[type].plural}
           count={facets.types.get(type) ?? 0}
           checked={filters.types.includes(type)}
-          onToggle={() =>
-            onChange({ ...filters, types: toggleValue(filters.types, type), page: 1 })
-          }
+          onToggle={() => onChange((f) => ({ ...f, types: toggleValue(f.types, type), page: 1 }))}
         />
       ))}
     </FacetSection>

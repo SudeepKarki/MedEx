@@ -13,10 +13,17 @@ import { useCatalog } from "../api/use-catalog";
 import type { ExplorerView } from "../domain/engine";
 import type { ExplorerFilters, SortKey } from "../domain/filters";
 import { pluralize } from "../domain/labels";
-import { sanitizeFilters } from "../domain/url-state";
+import type { Catalog } from "../domain/types";
+import { sanitizeFilters, serializeFilters } from "../domain/url-state";
 import { markFilterInteraction, useExplorerView } from "../hooks/use-explorer-view";
 import { useSearchDraft } from "../hooks/use-search-draft";
-import { useUrlFilters, type HistoryMode } from "../hooks/use-url-filters";
+import {
+  isLocationCanonical,
+  readLocationFilters,
+  useUrlFilters,
+  type FilterUpdate,
+  type HistoryMode,
+} from "../hooks/use-url-filters";
 import { ActiveFilterChips } from "./active-filter-chips";
 import { CompareTray } from "./compare";
 import { DataReport } from "./data-report";
@@ -36,34 +43,45 @@ const ANNOUNCE_DELAY_MS = 700;
 export function ServiceExplorer() {
   useRegisterMockEndpoints(EXPLORER_ENDPOINT_LIST);
   const pathname = usePathname();
-  const { filters: urlFilters, setFilters, isCanonical } = useUrlFilters();
+  const { filters: urlFilters, queryString, updateFilters } = useUrlFilters();
   const catalogState = useCatalog();
   const { catalog, index } = catalogState;
 
-  const navigate = useCallback(
-    (next: ExplorerFilters, mode: HistoryMode = "push") => {
-      markFilterInteraction();
-      setFilters(next, mode);
-    },
-    [setFilters],
-  );
-
   // Drop values the catalog doesn't know (old links), once it has loaded.
-  const sanitized = useMemo(
-    () => (catalog ? sanitizeFilters(urlFilters, catalog) : null),
+  const appliedFilters = useMemo(
+    () => (catalog ? sanitizeFilters(urlFilters, catalog).filters : urlFilters),
     [catalog, urlFilters],
   );
-  /** What the URL says, cleaned. Stable while the customer is typing. */
-  const appliedFilters = sanitized?.filters ?? urlFilters;
 
-  // The search box runs ahead of the URL (see useSearchDraft).
+  // The search box runs ahead of the URL (see useSearchDraft). The ref always
+  // holds what's in the box *now*, for building URL changes at click time.
   const [query, setQuery] = useSearchDraft(urlFilters.q, (q, mode) =>
-    navigate({ ...appliedFilters, q, page: 1 }, mode),
+    updateFilters((current) => ({ ...current, q, page: 1 }), mode),
   );
   const queryRef = useRef(query);
   useEffect(() => {
     queryRef.current = query;
   }, [query]);
+  const onQueryChange = useCallback(
+    (value: string) => {
+      queryRef.current = value;
+      setQuery(value);
+    },
+    [setQuery],
+  );
+
+  /**
+   * Every filter change goes through here. It's an updater applied to the
+   * address bar as it is now, plus the search box's current text (which may
+   * not have reached the URL yet), never to React state that may lag behind.
+   */
+  const navigate = useCallback(
+    (update: FilterUpdate, mode: HistoryMode = "push") => {
+      markFilterInteraction();
+      updateFilters((current) => update({ ...current, q: queryRef.current.trim() }), mode);
+    },
+    [updateFilters],
+  );
 
   // Typing must never wait for results, so only the search text is deferred:
   // React renders the keystroke first and recomputes results in the
@@ -79,14 +97,6 @@ export function ServiceExplorer() {
   );
   const isUpdating = deferredQuery !== query.trim();
 
-  // The filter panel never shows the search text, so it gets the applied
-  // filters and a stable handler that adds the current search back in. That
-  // keeps the whole panel out of the render for each keystroke.
-  const onPanelChange = useCallback(
-    (next: ExplorerFilters) => navigate({ ...next, q: queryRef.current.trim() }),
-    [navigate],
-  );
-
   const view = useExplorerView(index, filters);
 
   // The explorer can hydrate after the providers have already noticed we're
@@ -95,18 +105,21 @@ export function ServiceExplorer() {
   const waitingForNetwork = hydrated && catalogState.isPaused && !view;
 
   useUrlHousekeeping({
-    urlFilters,
-    isCanonical,
-    sanitized,
-    // Only a view computed from the current filters may correct the page number
-    settledView: !isUpdating && filters.q === urlFilters.q ? view : null,
-    setFilters,
+    catalog,
+    queryString,
+    // Only a view computed from exactly what's in the address bar may correct its page number
+    settled: useMemo(
+      () => (!isUpdating && view ? { view, filters } : null),
+      [isUpdating, view, filters],
+    ),
+    updateFilters,
   });
   useAnnounceResults(view);
 
   const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusResultsHeading = useCallback(() => resultsHeadingRef.current?.focus(), []);
   const goToPage = (page: number) => {
-    navigate({ ...filters, page });
+    navigate((current) => ({ ...current, page }));
     resultsHeadingRef.current?.scrollIntoView({ block: "start" });
     resultsHeadingRef.current?.focus({ preventScroll: true });
   };
@@ -124,7 +137,7 @@ export function ServiceExplorer() {
           </p>
         </div>
         <search className="max-w-3xl">
-          <SearchBox value={query} onChange={setQuery} />
+          <SearchBox value={query} onChange={onQueryChange} />
         </search>
       </div>
 
@@ -137,7 +150,7 @@ export function ServiceExplorer() {
                 filters={appliedFilters}
                 facets={view.facets}
                 catalog={catalog}
-                onChange={onPanelChange}
+                onChange={navigate}
               />
             ) : catalogState.error || waitingForNetwork ? null : (
               <FiltersSkeleton />
@@ -189,15 +202,26 @@ export function ServiceExplorer() {
                   </span>
                 </h2>
                 <div className="flex items-center gap-2">
-                  <MobileFilterDrawer index={index} filters={filters} onApply={navigate} />
+                  <MobileFilterDrawer
+                    index={index}
+                    filters={filters}
+                    onApply={(draft) => navigate((current) => ({ ...draft, q: current.q }))}
+                  />
                   <SortSelect
                     value={filters.sort}
-                    onChange={(sort: SortKey) => navigate({ ...filters, sort, page: 1 })}
+                    onChange={(sort: SortKey) =>
+                      navigate((current) => ({ ...current, sort, page: 1 }))
+                    }
                   />
                 </div>
               </div>
 
-              <ActiveFilterChips filters={filters} catalog={catalog} onChange={navigate} />
+              <ActiveFilterChips
+                filters={filters}
+                catalog={catalog}
+                onChange={navigate}
+                onAllRemoved={focusResultsHeading}
+              />
               <CurrencyNotice filters={filters} view={view} />
 
               <div aria-busy={isUpdating} className="flex flex-col gap-6">
@@ -272,41 +296,48 @@ function CurrencyNotice({ filters, view }: { filters: ExplorerFilters; view: Exp
 }
 
 /**
- * Keeps the address bar honest without adding history entries: canonical
- * form, unknown values removed (with a note), out-of-range pages clamped.
+ * Keeps the address bar honest without adding history entries: unknown values
+ * removed (with a note), out-of-range pages clamped, canonical form. Every
+ * correction is an updater on the live URL, so it can never put back an older
+ * state over a newer click.
  */
 function useUrlHousekeeping({
-  urlFilters,
-  isCanonical,
-  sanitized,
-  settledView,
-  setFilters,
+  catalog,
+  queryString,
+  settled,
+  updateFilters,
 }: {
-  urlFilters: ExplorerFilters;
-  isCanonical: boolean;
-  sanitized: ReturnType<typeof sanitizeFilters> | null;
-  settledView: ExplorerView | null;
-  setFilters: (next: ExplorerFilters, mode: HistoryMode) => void;
+  catalog: Catalog | null;
+  queryString: string;
+  settled: { view: ExplorerView; filters: ExplorerFilters } | null;
+  updateFilters: (update: FilterUpdate, mode: HistoryMode) => void;
 }) {
   const reportedDrops = useRef<string>("");
   useEffect(() => {
-    if (sanitized && sanitized.dropped.length > 0) {
-      const key = sanitized.dropped.join("|");
-      if (reportedDrops.current !== key) {
-        reportedDrops.current = key;
-        toast.info("Some filters in this link are no longer available", {
-          description: `Removed: ${sanitized.dropped.join(", ")}.`,
-        });
+    if (catalog) {
+      const { dropped } = sanitizeFilters(readLocationFilters(), catalog);
+      if (dropped.length > 0) {
+        const key = dropped.join("|");
+        if (reportedDrops.current !== key) {
+          reportedDrops.current = key;
+          toast.info("Some filters in this link are no longer available", {
+            description: `Removed: ${dropped.join(", ")}.`,
+          });
+        }
+        updateFilters((current) => sanitizeFilters(current, catalog).filters, "replace");
+        return;
       }
-      setFilters(sanitized.filters, "replace");
+    }
+    if (
+      settled &&
+      settled.view.page !== settled.filters.page &&
+      serializeFilters(settled.filters) === serializeFilters(readLocationFilters())
+    ) {
+      updateFilters((current) => ({ ...current, page: settled.view.page }), "replace");
       return;
     }
-    if (settledView && settledView.page !== urlFilters.page) {
-      setFilters({ ...urlFilters, page: settledView.page }, "replace");
-      return;
-    }
-    if (!isCanonical) setFilters(urlFilters, "replace");
-  }, [sanitized, settledView, urlFilters, isCanonical, setFilters]);
+    if (!isLocationCanonical()) updateFilters((current) => current, "replace");
+  }, [catalog, queryString, settled, updateFilters]);
 }
 
 /** Tells screen-reader users when the number of results changes (debounced). */

@@ -33,7 +33,7 @@ export function CategoryFacet({
       title="Category"
       onClear={
         filters.categories.length
-          ? () => onChange({ ...filters, categories: [], subcategories: [], page: 1 })
+          ? () => onChange((f) => ({ ...f, categories: [], subcategories: [], page: 1 }))
           : undefined
       }
     >
@@ -58,7 +58,7 @@ export function CategoryFacet({
                   label={category.title}
                   count={facets.categories.get(category.key) ?? 0}
                   checked={selected}
-                  onToggle={() => onChange(toggleCategory(filters, category.key))}
+                  onToggle={() => onChange((f) => toggleCategory(f, category.key))}
                 />
                 {selected && category.children.length > 0 && (
                   <div
@@ -73,11 +73,11 @@ export function CategoryFacet({
                         count={facets.subcategories.get(sub.key) ?? 0}
                         checked={filters.subcategories.includes(sub.key)}
                         onToggle={() =>
-                          onChange({
-                            ...filters,
-                            subcategories: toggleValue(filters.subcategories, sub.key),
+                          onChange((f) => ({
+                            ...f,
+                            subcategories: toggleValue(f.subcategories, sub.key),
                             page: 1,
-                          })
+                          }))
                         }
                       />
                     ))}

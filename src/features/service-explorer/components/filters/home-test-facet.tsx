@@ -19,7 +19,7 @@ export function HomeTestFacet({
         label="Available as a home test"
         count={facets.homeTest}
         checked={filters.homeTest}
-        onToggle={() => onChange({ ...filters, homeTest: !filters.homeTest, page: 1 })}
+        onToggle={() => onChange((f) => ({ ...f, homeTest: !f.homeTest, page: 1 }))}
       />
     </FacetSection>
   );
