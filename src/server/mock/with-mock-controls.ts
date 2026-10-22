@@ -32,27 +32,46 @@ export async function withMockControls(
   handler: () => Response | Promise<Response>,
   options: MockOptions = {},
 ): Promise<Response> {
-  const url = new URL(request.url);
-  const latencyValue =
-    request.headers.get(MOCK_LATENCY_HEADER) ?? url.searchParams.get(MOCK_LATENCY_QUERY);
-  const failValue = request.headers.get(MOCK_FAIL_HEADER) ?? url.searchParams.get(MOCK_FAIL_QUERY);
+  const { failure } = readMockControls(request);
 
-  if (failValue === "timeout") {
-    await sleep(TIMEOUT_HOLD_MS, request.signal);
+  if (failure === "timeout") {
+    await holdUntilClientGivesUp(request);
     return Response.json({ message: "Simulated timeout" }, { status: 504 });
   }
 
-  await sleep(resolveLatency(latencyValue) + (options.extraLatencyMs ?? 0), request.signal);
+  await mockDelay(request, options.extraLatencyMs);
 
-  const status = failValue ? Number(failValue) : NaN;
+  const status = failure ? Number(failure) : NaN;
   if (Number.isInteger(status) && status >= 400 && status <= 599) {
     return Response.json(
-      { message: `Simulated failure (HTTP ${status})`, simulated: true },
+      { code: "SIMULATED", message: `Simulated failure (HTTP ${status})` },
       { status },
     );
   }
 
   return handler();
+}
+
+/** The mock controls a request carries, for handlers that implement failures themselves. */
+export function readMockControls(request: Request): {
+  latency: string | null;
+  failure: string | null;
+} {
+  const url = new URL(request.url);
+  return {
+    latency: request.headers.get(MOCK_LATENCY_HEADER) ?? url.searchParams.get(MOCK_LATENCY_QUERY),
+    failure: request.headers.get(MOCK_FAIL_HEADER) ?? url.searchParams.get(MOCK_FAIL_QUERY),
+  };
+}
+
+/** Waits the requested (or default realistic) latency. */
+export function mockDelay(request: Request, extraMs = 0): Promise<void> {
+  return sleep(resolveLatency(readMockControls(request).latency) + extraMs, request.signal);
+}
+
+/** Holds the request past the client's timeout (or until the client gives up). */
+export function holdUntilClientGivesUp(request: Request): Promise<void> {
+  return sleep(TIMEOUT_HOLD_MS, request.signal);
 }
 
 function resolveLatency(value: string | null): number {
