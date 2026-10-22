@@ -1,11 +1,15 @@
-const NICE = [1, 2, 2.5, 5, 10];
+const NICE_MAX = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+const NICE_STEP = [1, 2, 5, 10];
 
-/** Rounds up to a "nice" number (1, 2, 2.5 or 5 × 10ⁿ): 24,950 → 25,000. */
-export function niceCeil(value: number): number {
+function roundUpTo(value: number, nice: readonly number[]): number {
   if (value <= 0) return 0;
   const magnitude = 10 ** Math.floor(Math.log10(value));
-  const nice = NICE.find((n) => n * magnitude >= value) ?? 10;
-  return nice * magnitude;
+  return (nice.find((n) => n * magnitude >= value) ?? 10) * magnitude;
+}
+
+/** Rounds up to a "nice" slider maximum: 24,950 → 25,000; 25,893 → 30,000. */
+export function niceCeil(value: number): number {
+  return roundUpTo(value, NICE_MAX);
 }
 
 export interface PriceScale {
@@ -23,7 +27,9 @@ export interface PriceScale {
 export function priceScale(samplesMinor: readonly number[], buckets = 24): PriceScale {
   const highest = samplesMinor.reduce((max, m) => Math.max(max, m), 0) / 100;
   const max = Math.max(niceCeil(highest), 100);
-  const step = Math.max(1, niceCeil(max / 200));
+  // Whole currency units only: the URL stores whole numbers, so a fractional
+  // step would produce prices the URL then drops.
+  const step = Math.max(1, Math.round(roundUpTo(max / 200, NICE_STEP)));
   const histogram = new Array<number>(buckets).fill(0);
   for (const minor of samplesMinor) {
     const i = Math.min(buckets - 1, Math.floor((minor / 100 / max) * buckets));

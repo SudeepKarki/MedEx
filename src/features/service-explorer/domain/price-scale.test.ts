@@ -6,7 +6,8 @@ describe("price scale", () => {
     expect(niceCeil(24_950)).toBe(25_000);
     expect(niceCeil(94_410)).toBe(100_000);
     expect(niceCeil(5_000)).toBe(5_000);
-    expect(niceCeil(1_201)).toBe(2_000);
+    expect(niceCeil(1_201)).toBe(1_500);
+    expect(niceCeil(25_893)).toBe(30_000);
   });
 
   it("buckets every sample, including the most expensive", () => {
@@ -14,6 +15,15 @@ describe("price scale", () => {
     expect(scale.max).toBe(25_000);
     expect(scale.histogram.reduce((a, b) => a + b, 0)).toBe(3);
     expect(scale.histogram[9]).toBe(1);
+  });
+
+  it("only ever steps in whole currency units", () => {
+    for (const highest of [0, 120, 499, 500, 2_401, 25_893, 94_410, 1_000_000]) {
+      const { max, step } = priceScale([highest * 100]);
+      expect(Number.isInteger(step), `step for ${highest}`).toBe(true);
+      expect(Number.isInteger(max)).toBe(true);
+      expect(step).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it("copes with no samples", () => {

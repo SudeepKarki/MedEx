@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDownIcon, MapPinIcon } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { NativeCheckbox } from "@/components/form/native-checkbox";
 import { formatCount } from "@/lib/money";
@@ -19,14 +19,18 @@ interface ProviderCardProps {
   result: ProviderResult;
   catalog: Catalog;
   rangeActive: boolean;
+  expanded: boolean;
+  onToggleExpanded: (providerId: number) => void;
 }
 
-export function ProviderCard({ result, catalog, rangeActive }: ProviderCardProps) {
+export function ProviderCard({
+  result,
+  catalog,
+  rangeActive,
+  expanded,
+  onToggleExpanded,
+}: ProviderCardProps) {
   const { provider, services } = result;
-  // Remember *which* provider was expanded: the card is reused for other
-  // providers when results change (see ResultsList).
-  const [expandedFor, setExpandedFor] = useState<number | null>(null);
-  const expanded = expandedFor === provider.id;
   const listId = useId();
   const headingId = useId();
   const firstExtraRef = useRef<HTMLLIElement>(null);
@@ -34,11 +38,10 @@ export function ProviderCard({ result, catalog, rangeActive }: ProviderCardProps
   const hiddenCount = services.length - SERVICES_PREVIEW_COUNT;
 
   const toggle = () => {
-    const next = !expanded;
-    setExpandedFor(next ? provider.id : null);
+    onToggleExpanded(provider.id);
     // Move focus to the first newly revealed service so keyboard and screen
     // reader users land on what they asked to see.
-    if (next) requestAnimationFrame(() => firstExtraRef.current?.focus());
+    if (!expanded) requestAnimationFrame(() => firstExtraRef.current?.focus());
   };
 
   return (

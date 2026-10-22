@@ -9,26 +9,32 @@ interface FacetSectionProps {
   description?: ReactNode;
 }
 
-/** A labelled group of filter controls (fieldset + legend for screen readers). */
+/**
+ * A labelled group of filter controls. The <legend> must be the fieldset's
+ * first direct child to give the group its accessible name ("Service type,
+ * group"), so it's floated for layout instead of wrapped.
+ */
 export function FacetSection({ title, onClear, children, description }: FacetSectionProps) {
   return (
-    <fieldset className="flex min-w-0 flex-col gap-1 border-b pb-4 last:border-b-0">
-      <div className="flex min-h-8 items-center justify-between gap-2">
-        <legend className="float-left font-heading text-sm font-semibold">{title}</legend>
-        {onClear && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={onClear}
-            className="text-primary"
-            aria-label={`Clear ${title.toLowerCase()} filter`}
-          >
-            Clear
-          </Button>
-        )}
+    <fieldset className="relative min-w-0 border-b pb-4 last:border-b-0">
+      <legend className="float-left flex min-h-8 w-full items-center pr-16 font-heading text-sm font-semibold">
+        {title}
+      </legend>
+      {onClear && (
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={onClear}
+          className="absolute top-1 right-0 text-primary"
+          aria-label={`Clear ${title.toLowerCase()} filter`}
+        >
+          Clear
+        </Button>
+      )}
+      <div className="clear-left flex flex-col gap-1">
+        {description && <div className="text-xs text-muted-foreground">{description}</div>}
+        {children}
       </div>
-      {description && <div className="text-xs text-muted-foreground">{description}</div>}
-      {children}
     </fieldset>
   );
 }

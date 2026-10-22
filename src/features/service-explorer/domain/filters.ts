@@ -139,7 +139,10 @@ export function toggleCity(
       ...filters,
       page: 1,
       countries: filters.countries.filter((c) => c !== countryCode),
-      cities: [...filters.cities, ...siblingCityKeys.filter((key) => key !== cityKey)],
+      cities: [
+        ...filters.cities.filter((key) => !key.startsWith(`${countryCode}.`)),
+        ...siblingCityKeys.filter((key) => key !== cityKey),
+      ],
     };
   }
   const cities = toggleValue(filters.cities, cityKey);
