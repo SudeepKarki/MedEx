@@ -1,7 +1,7 @@
 "use client";
 
 import { Building2Icon, PencilIcon, UserIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import { TimeZoneSelect } from "./time-zone-select";
  */
 export function ClockStrip({ clocks, providerName }: { clocks: Clocks; providerName: string }) {
   const [editing, setEditing] = useState(false);
+  const changeRef = useRef<HTMLButtonElement>(null);
   const at = clocks.minute * 60_000;
   const ready = clocks.minute > 0;
   const gap = clockGap(clocks.provider, clocks.customer, at);
@@ -30,7 +31,7 @@ export function ClockStrip({ clocks, providerName }: { clocks: Clocks; providerN
       <div className="grid gap-3 sm:grid-cols-2">
         <Clock
           icon={<Building2Icon aria-hidden className="size-5" />}
-          label={`Appointment time · ${clocks.providerCity}`}
+          label={`Appointment time · ${clocks.providerLabel}`}
           zone={clocks.provider}
           at={at}
           ready={ready}
@@ -39,7 +40,7 @@ export function ClockStrip({ clocks, providerName }: { clocks: Clocks; providerN
         />
         <Clock
           icon={<UserIcon aria-hidden className="size-5" />}
-          label={`Your time · ${clocks.customerCity}`}
+          label={`Your time · ${clocks.customerLabel}`}
           zone={clocks.customer}
           at={at}
           ready={ready}
@@ -47,6 +48,7 @@ export function ClockStrip({ clocks, providerName }: { clocks: Clocks; providerN
           footnote={clocks.detected ? "Detected from this device." : "Chosen by you."}
           action={
             <Button
+              ref={changeRef}
               type="button"
               variant="ghost"
               size="sm"
@@ -61,22 +63,34 @@ export function ClockStrip({ clocks, providerName }: { clocks: Clocks; providerN
         />
       </div>
       {editing && (
-        <div id="customer-zone" className="rounded-lg border bg-card p-3">
-          <TimeZoneSelect now={at} onDone={() => setEditing(false)} />
+        <div id="customer-zone" className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <TimeZoneSelect now={at} />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setEditing(false);
+              changeRef.current?.focus();
+            }}
+          >
+            Done
+          </Button>
         </div>
       )}
       <p className="text-sm text-muted-foreground">
         {clocks.same ? (
           <>
-            {clocks.providerCity} is on the same time as you, so every time below is also your time.
+            {clocks.providerLabel} time is the same as yours, so every time below is also your time.
           </>
         ) : (
           <>
             <strong className="font-semibold text-foreground">
-              All times are {clocks.providerCity} time
+              All times are {clocks.providerLabel} time
             </strong>
-            , where {providerName} is. {clocks.providerCity} is {ready ? gap.text : "…"}; your{" "}
-            {clocks.customerCity} time is shown under each one.
+            , the time at {providerName}. {clocks.providerLabel} is {ready ? gap.text : "…"}; your{" "}
+            {clocks.customerLabel} time is shown under each one.
           </>
         )}
       </p>

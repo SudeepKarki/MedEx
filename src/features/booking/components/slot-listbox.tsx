@@ -41,16 +41,16 @@ const PERIOD_ICONS = { morning: SunriseIcon, afternoon: SunIcon, evening: MoonIc
 export function SlotListbox({
   label,
   groups,
-  providerCity,
-  customerCity,
+  providerLabel,
+  customerLabel,
   showCustomer,
   disabled,
   onChoose,
 }: {
   label: string;
   groups: SlotGroup[];
-  providerCity: string;
-  customerCity: string;
+  providerLabel: string;
+  customerLabel: string;
   showCustomer: boolean;
   disabled: boolean;
   onChoose: (option: SlotOption) => void;
@@ -151,8 +151,8 @@ export function SlotListbox({
                 <SlotChip
                   key={option.key}
                   option={option}
-                  providerCity={providerCity}
-                  customerCity={customerCity}
+                  providerLabel={providerLabel}
+                  customerLabel={customerLabel}
                   showCustomer={showCustomer}
                   tabbable={option.key === activeKey}
                   disabled={disabled}
@@ -174,8 +174,8 @@ export function SlotListbox({
 
 function SlotChip({
   option,
-  providerCity,
-  customerCity,
+  providerLabel,
+  customerLabel,
   showCustomer,
   tabbable,
   disabled,
@@ -184,8 +184,8 @@ function SlotChip({
   onChoose,
 }: {
   option: SlotOption;
-  providerCity: string;
-  customerCity: string;
+  providerLabel: string;
+  customerLabel: string;
   showCustomer: boolean;
   tabbable: boolean;
   disabled: boolean;
@@ -195,8 +195,8 @@ function SlotChip({
 }) {
   const shift = dayShiftLabel(option.time.dayShift);
   const spoken = [
-    `${formatClock(option.startMinutes)} ${providerCity} time`,
-    showCustomer ? `${formatCustomerTime(option.time)} your time in ${customerCity}` : null,
+    `${formatClock(option.startMinutes)} ${providerLabel} time`,
+    showCustomer ? `${formatCustomerTime(option.time)} your time in ${customerLabel}` : null,
     option.inRun ? "included in your group booking" : null,
     option.spokenReason,
   ]

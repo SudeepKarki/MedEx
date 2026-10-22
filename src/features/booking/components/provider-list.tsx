@@ -4,16 +4,24 @@ import { ArrowRightIcon, CalendarClockIcon, InfoIcon, MapPinIcon } from "lucide-
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatClock } from "../domain/plain-date";
-import { toWallClock, zoneCity } from "../domain/timezone";
+import { DEMO_BOOKING_ID } from "../api/endpoints";
+import { COUNTRY_NAMES, providerZoneLabel, toWallClock, type Zone } from "../domain/timezone";
 import { useProviders } from "../hooks/queries";
+import { useBookingDevTools } from "../hooks/use-booking-dev-tools";
 import { useServerMinute } from "../state/server-clock";
 import { zoneDisclosure } from "./provider-header";
 import { InlineError } from "./states";
 
-const EXISTING_BOOKING = "BK-20261008-0042";
+/** "Thailand time", or "India · Dubai time" when a provider's clock isn't its country's. */
+function placeOf(zone: Zone, country: string | null) {
+  const label = providerZoneLabel(zone, country);
+  const name = country ? (COUNTRY_NAMES[country] ?? country) : null;
+  return name && name !== label ? `${name} · ${label} time` : `${label} time`;
+}
 
 /** /book: pick a provider (not in the brief; the demo's way in), or reschedule the existing booking. */
 export function ProviderList() {
+  useBookingDevTools();
   const providers = useProviders();
   const minute = useServerMinute();
   const at = minute * 60_000;
@@ -29,12 +37,12 @@ export function ProviderList() {
       </header>
 
       <Link
-        href={`/bookings/${EXISTING_BOOKING}/reschedule`}
+        href={`/bookings/${DEMO_BOOKING_ID}/reschedule`}
         className="flex items-center gap-3 rounded-xl border border-primary/40 bg-accent/50 p-4 transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <CalendarClockIcon aria-hidden className="size-5 shrink-0 text-primary" />
         <span className="flex flex-1 flex-col">
-          <span className="font-medium">Reschedule booking {EXISTING_BOOKING}</span>
+          <span className="font-medium">Reschedule booking {DEMO_BOOKING_ID}</span>
           <span className="text-sm text-muted-foreground">Your existing appointment at Riverside International Hospital</span>
         </span>
         <ArrowRightIcon aria-hidden className="size-4" />
@@ -53,7 +61,7 @@ export function ProviderList() {
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {providers.data.map(({ provider }) => {
-            const disclosure = at > 0 ? zoneDisclosure(provider.timeZone, at) : null;
+            const disclosure = at > 0 ? zoneDisclosure(provider.timeZone, provider.country, at) : null;
             return (
               <li key={provider.id}>
                 <Link
@@ -70,7 +78,7 @@ export function ProviderList() {
                   </span>
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <MapPinIcon aria-hidden className="size-4" />
-                    {zoneCity(provider.timeZone.zone)} time · {provider.specialists.length}{" "}
+                    {placeOf(provider.timeZone.zone, provider.country)} · {provider.specialists.length}{" "}
                     {provider.specialists.length === 1 ? "specialist" : "specialists"}
                   </span>
                   <span className="text-sm text-muted-foreground">

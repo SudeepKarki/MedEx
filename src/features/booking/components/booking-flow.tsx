@@ -1,22 +1,19 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { announce } from "@/components/app/live-announcer";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import { useRegisterDevActions } from "@/lib/mock-controls/dev-actions";
-import { useRegisterMockEndpoints } from "@/lib/mock-controls/use-register-mock-endpoints";
-import { createBooking, moveBooking, resetDemo, type Booking, type ProviderData } from "../api/client";
-import { BOOKING_ENDPOINT_LIST } from "../api/endpoints";
-import { closestAlternatives, type Alternative } from "../domain/alternatives";
-import { describeDay, nextAvailableDate, type DayStatus } from "../domain/availability";
-import { addDays, formatClock, formatPlainDate, parseClock, toClock, type PlainDate } from "../domain/plain-date";
-import type { Provider } from "../domain/types";
+import { createBooking, moveBooking, type Booking, type ProviderData } from "../api/client";
+import { describeDay, nextAvailableDate } from "../domain/availability";
+import { formatClock, formatPlainDate, parseClock, toClock, type PlainDate } from "../domain/plain-date";
+import { formatCustomerTime } from "../domain/two-clocks";
+import { alternativesAfterConflict, bookedKeys, daySuggestions, findSlot, nextFreeDay, slotProblem } from "../hooks/day-view";
+import { useAvailability, useSlots } from "../hooks/queries";
 import { selectionSchema, selectionToSearch, type BookingSelection, type SlotChoice } from "../hooks/selection";
-import { bookingKeys, useAvailability, useSlots } from "../hooks/queries";
+import { useBookingDevTools } from "../hooks/use-booking-dev-tools";
 import { useClocks } from "../hooks/use-clocks";
 import { useConfirm } from "../hooks/use-confirm";
 import { useConfirmAttempts } from "../state/confirm-attempt";
@@ -24,10 +21,11 @@ import { providerNowFrom } from "../state/server-clock";
 import { BookingCalendar, CalendarSkeleton } from "./booking-calendar";
 import { BookingSummary } from "./booking-summary";
 import { ClockStrip } from "./clock-strip";
+import { CurrentBookingNote, LoadingArea, Step } from "./flow-parts";
+import { MobileReviewBar } from "./mobile-review-bar";
 import { ProviderHeader } from "./provider-header";
 import { SlotPanel, SlotsSkeleton } from "./slot-panel";
 import { PeoplePicker, SpecialistPicker } from "./specialist-picker";
-import { MobileReviewBar } from "./mobile-review-bar";
 import { InlineError } from "./states";
 
 export type FlowMode = { kind: "new" } | { kind: "reschedule"; booking: Booking };
@@ -40,10 +38,7 @@ export type FlowMode = { kind: "new" } | { kind: "reschedule"; booking: Booking 
  * slots, and the server's clock.
  */
 export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode: FlowMode; initial: BookingSelection }) {
-  useRegisterMockEndpoints(BOOKING_ENDPOINT_LIST);
-  const queryClient = useQueryClient();
-  useRegisterDevActions(useMemo(() => devActions(queryClient), [queryClient]));
-
+  useBookingDevTools();
   const { provider } = data;
   const router = useRouter();
   const pathname = usePathname();
@@ -52,7 +47,6 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
   const booking = mode.kind === "reschedule" ? mode.booking : null;
   const scope = booking ? `move:${booking.bookingId}` : `create:${provider.id}`;
 
-  const [lastRequest, setLastRequest] = useState<{ date: PlainDate; slot: SlotChoice } | null>(null);
   const confirmer = useConfirm({
     scope,
     providerId: provider.id,
@@ -100,75 +94,50 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
   const specialistId = booking ? booking.specialistId : specialistChoice;
   const people = booking ? booking.numberOfPeople : peopleChoice;
   const current = booking
-    ? {
-        date: booking.date,
-        specialistId: booking.specialistId,
-        slotTimes: booking.slotTimes ?? [booking.startTime],
-      }
+    ? { date: booking.date, specialistId: booking.specialistId, slotTimes: booking.slotTimes ?? [booking.startTime] }
     : undefined;
+  // While a confirm is in flight or unanswered, nothing can change
   const locked = confirmer.isSending || confirmer.unknown !== null;
 
+  const now = clocks.minute > 0 ? providerNowFrom(clocks.provider, clocks.minute) : null;
   const availability = useAvailability(
     provider.id,
     { specialistId, people, exceptBooking: booking?.bookingId },
-    true,
+    now?.today ?? null,
   );
   const slots = useSlots(provider.id, date);
-  const ready = clocks.minute > 0;
-  const now = ready ? providerNowFrom(clocks.provider, clocks.minute) : null;
   const days = availability.data?.days;
-  const today = days?.[0]?.date ?? now?.today ?? null;
+  const today = days?.[0]?.date ?? null;
 
   // No date chosen yet: start on the earliest day with something free (or the current appointment's day)
   const settled = availability.data && !availability.isPlaceholderData;
   useEffect(() => {
-    if (date || !settled || !days) return;
+    if (date || !settled || !days?.[0]) return;
     const currentDay = booking && days.find((d) => d.date === booking.date && d.status.kind === "available");
-    const first = currentDay?.date ?? nextAvailableDate(days, days[0]!.date) ?? days[0]!.date;
-    form.setValue("date", first);
+    form.setValue("date", currentDay?.date ?? nextAvailableDate(days, days[0].date) ?? days[0].date);
   }, [date, settled, days, booking, form]);
 
   const day =
     date && slots.data && now
-      ? describeDay({
-          provider,
-          date,
-          now,
-          specialistId,
-          people,
-          booked: new Set(slots.data.filter((s) => s.isBooked).map((s) => `${s.specialistId}|${s.startTime}`)),
-          current,
-        })
+      ? describeDay({ provider, date, now, specialistId, people, booked: bookedKeys(slots.data), current })
       : null;
 
-  const chosen = slot && day ? day.specialists.find((d) => d.specialist.id === slot.specialistId)?.slots.find((s) => toClock(s.startMinutes) === slot.startTime) : undefined;
-  const slotProblem = !slot || !day ? null : problemWith(slot, chosen, people);
+  // An unanswered attempt's own slot may well be booked by *them*: don't call it someone else's
+  const problem = slot && day && !confirmer.unknown ? slotProblem(slot, findSlot(day.specialists, slot), people) : null;
+  // Confirm only against this day's real slots, never against a guess
+  const waitingFor = !date || !slot || day ? null : slots.isError ? "times-failed" : "times-loading";
 
-  const nextFrom = (from: PlainDate) =>
-    days ? (nextAvailableDate(days, addDays(from, 1)) ?? nextAvailableDate(days, days[0]!.date)) : null;
-  const nextAvailable = availability.data?.nextAvailable;
-  const specialistHasNone = Boolean(specialistId && nextAvailable && nextAvailable[specialistId] === null);
-  const suggestions = {
-    nextDate: date ? nextFrom(date) : null,
-    specialistHasNone,
-    otherSpecialists:
-      specialistHasNone && !booking && nextAvailable
-        ? provider.specialists.flatMap((s) =>
-            s.id !== specialistId && nextAvailable[s.id] ? [{ specialist: s, nextAvailable: nextAvailable[s.id]! }] : [],
-          )
-        : [],
-  };
-
-  const failure = confirmer.failure;
-  const alternatives: Alternative[] | null =
-    failure?.kind === "taken" && lastRequest
-      ? day && !slots.isFetching && lastRequest.date === date
-        ? closestAlternatives(
-            day.specialists,
-            { specialistId: lastRequest.slot.specialistId, startMinutes: parseClock(lastRequest.slot.startTime) ?? 0 },
-            { anySpecialist: specialistId === null },
-          )
-        : null
+  const sent = confirmer.lastRequest;
+  const wanted = sent ? { date: sent.date, slot: { specialistId: sent.specialistId, startTime: sent.startTime } } : null;
+  const alternatives =
+    confirmer.failure?.kind === "taken"
+      ? alternativesAfterConflict({
+          wanted,
+          date,
+          day: day?.specialists ?? null,
+          fresh: !slots.isFetching,
+          anySpecialist: specialistId === null,
+        })
       : null;
 
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -178,11 +147,9 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
     form.clearErrors("slot");
     confirmer.clearFailure();
     const minutes = parseClock(choice.startTime) ?? 0;
-    const time = clocks.dual(date!, minutes);
+    const yours = clocks.same || !date ? "" : `, ${formatCustomerTime(clocks.dual(date, minutes))} your time`;
     const who = provider.specialists.find((s) => s.id === choice.specialistId)?.name;
-    announce(
-      `Chosen: ${formatClock(minutes)} ${clocks.providerCity} time${clocks.same ? "" : `, ${formatClock(time.customer.minutes)} your time`}${who ? `, with ${who}` : ""}.`,
-    );
+    announce(`Chosen: ${formatClock(minutes)} ${clocks.providerLabel} time${yours}${who ? `, with ${who}` : ""}.`);
     if (focusConfirm) requestAnimationFrame(() => submitRef.current?.focus());
   };
   const pickDate = (next: PlainDate) => {
@@ -193,8 +160,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
 
   const onSubmit = form.handleSubmit(
     (values) => {
-      if (!values.date || !values.slot || slotProblem) return;
-      setLastRequest({ date: values.date, slot: values.slot });
+      if (!values.date || !values.slot || problem || waitingFor || locked) return;
       confirmer.confirm({
         specialistId: values.slot.specialistId,
         date: values.date,
@@ -211,7 +177,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
       <ProviderHeader
         provider={provider}
-        title={booking ? "Move your appointment" : `Book an appointment`}
+        title={booking ? "Move your appointment" : "Book an appointment"}
         eyebrow={booking ? `Booking ${booking.bookingId}` : undefined}
         now={clocks.minute * 60_000}
       />
@@ -232,8 +198,8 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
                     if (slot && id && slot.specialistId !== id) form.setValue("slot", null);
                     confirmer.clearFailure();
                   }}
-                  nextAvailable={nextAvailable}
-                  providerCity={clocks.providerCity}
+                  nextAvailable={availability.data?.nextAvailable}
+                  providerLabel={clocks.providerLabel}
                   disabled={locked}
                 />
                 <PeoplePicker
@@ -249,7 +215,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
           </Step>
 
           <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-            <Step n={2} title="Choose a date" id="step-date" note={`Dates at ${provider.name}, in ${clocks.providerCity}.`}>
+            <Step n={2} title="Choose a date" id="step-date" note={`Dates as they are at ${provider.name} (${clocks.providerLabel}).`}>
               {availability.isError && !days ? (
                 <InlineError
                   error={availability.error}
@@ -258,9 +224,9 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
                   what="the calendar"
                 />
               ) : !days || !today ? (
-                <SlowArea loading label="Loading the calendar">
+                <LoadingArea label="Loading the calendar" offline={!online}>
                   <CalendarSkeleton />
-                </SlowArea>
+                </LoadingArea>
               ) : (
                 <BookingCalendar
                   days={days}
@@ -279,7 +245,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
               n={3}
               title={dateHeading ? `Choose a time on ${dateHeading}` : "Choose a time"}
               id="step-time"
-              note={clocks.same ? undefined : `${clocks.providerCity} time, with your ${clocks.customerCity} time underneath.`}
+              note={clocks.same ? undefined : `${clocks.providerLabel} time, with your ${clocks.customerLabel} time underneath.`}
             >
               {!date ? (
                 days ? (
@@ -290,9 +256,9 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
               ) : slots.isError && !slots.data ? (
                 <InlineError error={slots.error} onRetry={() => slots.refetch()} retrying={slots.isFetching} what="the times" />
               ) : !day ? (
-                <SlowArea loading label="Loading times">
+                <LoadingArea label="Loading times" offline={!online}>
                   <SlotsSkeleton />
-                </SlowArea>
+                </LoadingArea>
               ) : (
                 <SlotPanel
                   provider={provider}
@@ -303,7 +269,13 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
                   selected={slot}
                   clocks={clocks}
                   disabled={locked}
-                  suggestions={suggestions}
+                  suggestions={daySuggestions({
+                    provider,
+                    date,
+                    specialistId,
+                    availability: availability.data,
+                    canSwitchSpecialist: !booking,
+                  })}
                   onChoose={(choice) => chooseSlot(choice)}
                   onPickDate={pickDate}
                   onPickSpecialist={(id, next) => {
@@ -329,19 +301,20 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
             people={people}
             clocks={clocks}
             online={online}
-            slotProblem={slotProblem}
-            checking={slots.isFetching && !slots.data}
+            slotProblem={problem}
+            waitingFor={waitingFor}
             validationError={slotError}
             submitRef={submitRef}
             move={booking ? { from: { date: booking.date, startTime: booking.startTime } } : null}
             confirm={{
               sending: confirmer.isSending,
               unknown: confirmer.unknown,
-              failure,
-              failedDate: lastRequest?.date ?? null,
-              failedTime: lastRequest?.slot.startTime ?? null,
+              unknownDetail: confirmer.unknownDetail,
+              failure: confirmer.failure,
+              failedDate: wanted?.date ?? null,
+              failedTime: wanted?.slot.startTime ?? null,
               alternatives,
-              nextDate: lastRequest ? nextFrom(lastRequest.date) : null,
+              nextDate: wanted ? nextFreeDay(days, wanted.date) : null,
               onCheck: () => confirmer.check(),
               onAlternative: (alt) => chooseSlot({ specialistId: alt.specialistId, startTime: toClock(alt.startMinutes) }, true),
               onPickDate: pickDate,
@@ -349,7 +322,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
           />
         </aside>
       </form>
-      {date && slot && !slotProblem && !locked && (
+      {date && slot && day && !problem && !locked && (
         <>
           <MobileReviewBar date={date} startTime={slot.startTime} clocks={clocks} summaryRef={summaryRef} submitRef={submitRef} />
           {/* room for the bar, so it never covers the end of the page */}
@@ -358,93 +331,4 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
       )}
     </div>
   );
-}
-
-function problemWith(slot: SlotChoice, chosen: { state: string; bookable: boolean } | undefined, people: number): string | null {
-  const time = formatClock(parseClock(slot.startTime) ?? 0);
-  if (!chosen) return `${time} isn't offered on this day. Choose another time.`;
-  if (chosen.bookable) return null;
-  switch (chosen.state) {
-    case "booked":
-      return `${time} has just been booked by someone else. Choose another time.`;
-    case "started":
-      return `${time} has already started. Choose a later time.`;
-    case "current":
-      return `${time} is your current appointment. Choose a different time to move it.`;
-    default:
-      return `${time} doesn't have ${people} free times in a row. Choose another start time.`;
-  }
-}
-
-function Step({ n, title, id, note, children }: { n: number; title: string; id: string; note?: string; children: ReactNode }) {
-  return (
-    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-4 rounded-2xl border bg-card/60 p-4 sm:p-5">
-      <div className="flex flex-col gap-0.5">
-        <h2 id={id} className="flex items-center gap-2.5 font-heading text-lg font-semibold">
-          <span
-            aria-hidden
-            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm text-primary-foreground"
-          >
-            {n}
-          </span>
-          {title}
-        </h2>
-        {note && <p className="pl-9.5 text-sm text-muted-foreground">{note}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** Skeleton area that, after a few seconds, says it's still loading (slow network). */
-function SlowArea({ loading, label, children }: { loading: boolean; label: string; children: ReactNode }) {
-  const [slow, setSlow] = useState(false);
-  useEffect(() => {
-    if (!loading) return;
-    const timer = window.setTimeout(() => setSlow(true), 2500);
-    return () => window.clearTimeout(timer);
-  }, [loading]);
-  return (
-    <div role="status" aria-label={label} aria-busy={loading} className="flex flex-col gap-3">
-      {children}
-      <p className="min-h-5 text-sm text-muted-foreground">{slow ? "Still loading. The connection seems slow…" : ""}</p>
-    </div>
-  );
-}
-
-function CurrentBookingNote({ provider, booking, days }: { provider: Provider; booking: Booking; days: { date: PlainDate; status: DayStatus }[] | undefined }) {
-  const specialist = provider.specialists.find((s) => s.id === booking.specialistId);
-  const status = days?.find((d) => d.date === booking.date)?.status;
-  const closedThatDay = status?.kind === "closed" || status?.kind === "closure";
-  return (
-    <div className="flex flex-col gap-2 text-sm">
-      <p>
-        With <span className="font-medium">{specialist?.name ?? "your specialist"}</span>
-        {specialist && <span className="text-muted-foreground"> ({specialist.speciality})</span>}, for{" "}
-        {booking.numberOfPeople === 1 ? "1 person" : `${booking.numberOfPeople} people`}. You can change the date and
-        time; to see someone else, make a new booking.
-      </p>
-      {closedThatDay && (
-        <p className="rounded-lg bg-warning-muted px-3 py-2 text-warning-foreground">
-          Your current appointment is on {formatPlainDate(booking.date, "long")}, but {provider.name}&apos;s listed hours
-          say it&apos;s closed that day. Your booking still stands; you may want to move it or check with them.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function devActions(queryClient: ReturnType<typeof useQueryClient>) {
-  return [
-    {
-      id: "booking.reset",
-      label: "Reset demo bookings",
-      description: "Restore the booked slots and the existing booking from the JSON file.",
-      run: async () => {
-        await resetDemo();
-        useConfirmAttempts.setState({ pending: {} });
-        await queryClient.invalidateQueries({ queryKey: bookingKeys.all });
-      },
-    },
-  ];
 }

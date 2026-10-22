@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Booking, ProviderData } from "../api/client";
 import { formatClock, formatPlainDate, isPlainDate, parseClock } from "../domain/plain-date";
 import { useBooking, useProvider } from "../hooks/queries";
+import { useBookingDevTools } from "../hooks/use-booking-dev-tools";
 import { useClocks } from "../hooks/use-clocks";
 import { AppointmentTime, GroupRun } from "./appointment-time";
 import { describeShift } from "./booking-summary";
@@ -17,6 +18,7 @@ import { isNotFound, NotFound, PageError } from "./routes";
 
 /** /bookings/[bookingId]: the confirmation (after booking or moving) and the way to reschedule. */
 export function BookingDetailsRoute() {
+  useBookingDevTools();
   const params = useParams<{ bookingId: string }>();
   const search = useSearchParams();
   const booking = useBooking(decodeURIComponent(params.bookingId));
@@ -122,8 +124,8 @@ function BookingDetails({
           />
         </dl>
         <p className="text-sm text-muted-foreground">
-          Please arrive by {clocks.providerCity} time. Your phone may show a different time if it&apos;s still set to{" "}
-          {clocks.same ? "another zone" : clocks.customerCity}.
+          Please arrive by {clocks.providerLabel} time. Your phone may show a different time if it&apos;s still set to{" "}
+          {clocks.same ? "another zone" : clocks.customerLabel}.
         </p>
       </section>
 

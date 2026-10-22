@@ -1,28 +1,24 @@
 import { InfoIcon, MapPinIcon } from "lucide-react";
-import type { ResolvedZone } from "../domain/timezone";
-import { formatOffset, offsetMinutes, zoneCity } from "../domain/timezone";
+import { COUNTRY_NAMES, formatOffset, offsetMinutes, providerZoneLabel, type ResolvedZone } from "../domain/timezone";
 import type { Provider } from "../domain/types";
-
-const COUNTRY_NAMES: Record<string, string> = { TH: "Thailand", NP: "Nepal", IN: "India" };
 
 /**
  * The provider typed its time zone by hand. Where we had to interpret it,
  * say so in plain words, so a customer can spot it if we read it wrong.
  */
-export function zoneDisclosure(resolved: ResolvedZone, now: number): string | null {
-  const city = zoneCity(resolved.zone);
-  const offset = formatOffset(offsetMinutes(resolved.zone, now));
+export function zoneDisclosure(resolved: ResolvedZone, country: string | null, now: number): string | null {
+  const label = `${providerZoneLabel(resolved.zone, country)} time (${formatOffset(offsetMinutes(resolved.zone, now))})`;
   const typed = resolved.input.trim();
   switch (resolved.source) {
     case "iana":
       return null;
     case "offset":
     case "windows":
-      return `Their time zone is listed as “${typed}”, which we read as ${city} time (${offset}).`;
+      return `Their time zone is listed as “${typed}”, which we read as ${label}.`;
     case "country":
       return typed
-        ? `We couldn't read their time zone (“${typed}”), so we're using ${city} time (${offset}), from their country.`
-        : `They haven't listed a time zone, so we're using ${city} time (${offset}), from their country.`;
+        ? `We couldn't read their time zone (“${typed}”), so we're using ${label}, from their country.`
+        : `They haven't listed a time zone, so we're using ${label}, from their country.`;
   }
 }
 
@@ -39,7 +35,8 @@ export function ProviderHeader({
   now: number;
 }) {
   // Offsets need a real moment (Nepal was UTC+5:30 before 1986), so wait for the clock
-  const disclosure = now > 0 ? zoneDisclosure(provider.timeZone, now) : null;
+  const disclosure = now > 0 ? zoneDisclosure(provider.timeZone, provider.country, now) : null;
+  // The data has a country, not a city: the zone's city (e.g. Kathmandu) isn't where the provider is
   const country = provider.country ? (COUNTRY_NAMES[provider.country] ?? provider.country) : null;
   return (
     <header className="flex flex-col gap-1.5">
@@ -48,7 +45,7 @@ export function ProviderHeader({
       <p className="flex items-center gap-1.5 text-muted-foreground">
         <MapPinIcon aria-hidden className="size-4" />
         {provider.name}
-        {country && ` · ${zoneCity(provider.timeZone.zone)}, ${country}`}
+        {country && ` · ${country}`}
       </p>
       {disclosure && (
         <p className="flex items-start gap-1.5 text-sm text-muted-foreground">

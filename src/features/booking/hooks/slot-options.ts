@@ -1,4 +1,4 @@
-import type { SpecialistDay } from "../domain/availability";
+import { slotKey, type SpecialistDay } from "../domain/availability";
 import { toClock, type PlainDate } from "../domain/plain-date";
 import { groupIndices, periodOf, type Period } from "../domain/slots";
 import type { DualTime } from "../domain/two-clocks";
@@ -35,7 +35,7 @@ export function slotGroups(
       ? [null, slot.state === "current" ? "part of your current appointment" : null]
       : (reasons[slot.state] ?? [null, null]);
     return {
-      key: `${day.specialist.id}|${toClock(slot.startMinutes)}`,
+      key: slotKey(day.specialist.id, slot.startMinutes),
       specialistId: day.specialist.id,
       startMinutes: slot.startMinutes,
       state: slot.state,

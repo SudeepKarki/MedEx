@@ -36,7 +36,7 @@ export async function fetchProvider(providerId: number, signal?: AbortSignal): P
 }
 
 export async function fetchProviders(signal?: AbortSignal): Promise<ProviderData[]> {
-  const body = parse(z.object({ data: z.array(z.unknown()) }), await apiRequest({ endpoint: E.provider.id, path: "/api/providers", signal }));
+  const body = parse(z.object({ data: z.array(z.unknown()) }), await apiRequest({ endpoint: E.providers.id, path: "/api/providers", signal }));
   return body.data.map((p) => normalizeProvider(p)).filter((p): p is ProviderData => p !== null);
 }
 

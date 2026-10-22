@@ -24,7 +24,7 @@ function optionLabel(id: string, at: number) {
  * from elsewhere. A native select: ~400 options, fully keyboard and
  * screen-reader friendly, and type-to-search for free.
  */
-export function TimeZoneSelect({ now, onDone }: { now: number; onDone?: () => void }) {
+export function TimeZoneSelect({ now }: { now: number }) {
   const id = useId();
   const chosen = useCustomerZoneStore((s) => s.chosen);
   const setChosen = useCustomerZoneStore((s) => s.setChosen);
@@ -39,10 +39,8 @@ export function TimeZoneSelect({ now, onDone }: { now: number; onDone?: () => vo
       <select
         id={id}
         value={chosen ?? ""}
-        onChange={(event) => {
-          setChosen(event.target.value || null);
-          onDone?.();
-        }}
+        // Applies as you go (arrow keys change a closed select in some browsers), never closes on its own
+        onChange={(event) => setChosen(event.target.value || null)}
         className="h-11 w-full cursor-pointer rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <option value="">This device: {optionLabel(device, now)}</option>

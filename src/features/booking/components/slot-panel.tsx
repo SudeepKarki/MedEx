@@ -64,6 +64,7 @@ export function SlotPanel({
         clocks={clocks}
         specialists={specialists}
         suggestions={suggestions}
+        disabled={disabled}
         onPickDate={onPickDate}
         onPickSpecialist={onPickSpecialist}
       />
@@ -94,8 +95,8 @@ export function SlotPanel({
               <SlotListbox
                 label={`Times with ${day.specialist.name} on ${formatPlainDate(date, "long")}`}
                 groups={groups}
-                providerCity={clocks.providerCity}
-                customerCity={clocks.customerCity}
+                providerLabel={clocks.providerLabel}
+                customerLabel={clocks.customerLabel}
                 showCustomer={!clocks.same}
                 disabled={disabled}
                 onChoose={(option) =>
@@ -134,6 +135,7 @@ function EmptyDay({
   clocks,
   specialists,
   suggestions,
+  disabled,
   onPickDate,
   onPickSpecialist,
 }: {
@@ -144,6 +146,7 @@ function EmptyDay({
   clocks: Clocks;
   specialists: SpecialistDay[];
   suggestions: DaySuggestions;
+  disabled: boolean;
   onPickDate: (date: PlainDate) => void;
   onPickSpecialist: (specialistId: string, date: PlainDate) => void;
 }) {
@@ -162,7 +165,7 @@ function EmptyDay({
       </div>
       <div className="flex flex-wrap gap-2">
         {suggestions.nextDate && (
-          <Button type="button" onClick={() => onPickDate(suggestions.nextDate!)}>
+          <Button type="button" disabled={disabled} onClick={() => onPickDate(suggestions.nextDate!)}>
             Next free day: {formatPlainDate(suggestions.nextDate)}
             <ArrowRightIcon aria-hidden />
           </Button>
@@ -172,6 +175,7 @@ function EmptyDay({
             key={specialist.id}
             type="button"
             variant="outline"
+            disabled={disabled}
             onClick={() => onPickSpecialist(specialist.id, nextAvailable)}
           >
             {specialist.name} ({specialist.speciality}), free {formatPlainDate(nextAvailable)}
@@ -199,7 +203,7 @@ function EmptyDay({
       case "day-over":
         return {
           title: "No times left today",
-          detail: `It's already ${formatClock(toWallClock(clocks.provider, clocks.minute * 60_000).minutes)} in ${clocks.providerCity}, and today's last appointment has started.`,
+          detail: `It's already ${formatClock(toWallClock(clocks.provider, clocks.minute * 60_000).minutes)} there (${clocks.providerLabel} time), and the rest of today's times have started or are booked.`,
         };
       case "fully-booked":
         return { title: `Every time is booked on ${day}`, detail: null };
@@ -211,7 +215,7 @@ function EmptyDay({
       case "specialist-off":
         return { title: `No consultation hours on ${day}`, detail: status.detail };
       case "past":
-        return { title: `${day} has passed`, detail: `Today in ${clocks.providerCity} is later than that.` };
+        return { title: `${day} has passed`, detail: `It's already later than that at ${provider.name}.` };
       case "not-open-yet":
         return { title: `Bookings for ${day} aren't open yet`, detail: "You can book up to 90 days ahead." };
       case "available":

@@ -44,19 +44,21 @@ test.beforeEach(async ({ page }) => {
   await setMockControls(page, { latency: "fast" });
 });
 
-test("every time says whose clock it is on: Bangkok first, Kathmandu alongside", async ({ page }) => {
+test("every time says whose clock it is on: the hospital's first, the customer's alongside", async ({ page }) => {
   const date = await laterAvailableDate(page, RIVERSIDE, `specialistId=${WONGSAKUL}`);
   await page.goto(`/book/${RIVERSIDE}?specialist=${WONGSAKUL}&date=${date}`);
 
-  await expect(page.getByText("All times are Bangkok time")).toBeVisible();
-  await expect(page.getByText(/Bangkok is 1 h 15 min ahead of you/)).toBeVisible();
+  await expect(page.getByText("All times are Thailand time")).toBeVisible();
+  await expect(page.getByText(/Thailand is 1 h 15 min ahead of you/)).toBeVisible();
+  // The data has a country, not a city: no claim about where the hospital is beyond that
+  await expect(page.getByText("Riverside International Hospital · Thailand")).toBeVisible();
   // 10:00 AM in Bangkok is 8:45 AM in Kathmandu, whether or not it's free
-  await expect(page.getByRole("option", { name: /^10:00 AM Bangkok time/ })).toHaveAccessibleName(
-    /^10:00 AM Bangkok time, 8:45 AM your time in Kathmandu/,
+  await expect(page.getByRole("option", { name: /^10:00 AM Thailand time/ })).toHaveAccessibleName(
+    /^10:00 AM Thailand time, 8:45 AM your time in Kathmandu/,
   );
 
   await freeOption(page).first().click();
-  await expect(summary(page)).toContainText("Bangkok time");
+  await expect(summary(page)).toContainText("Thailand time");
   await expect(summary(page)).toContainText(/your time in Kathmandu/);
 });
 
@@ -64,9 +66,16 @@ test("the customer can say they're somewhere else, and the second clock follows"
   const date = await laterAvailableDate(page, RIVERSIDE, `specialistId=${WONGSAKUL}`);
   await page.goto(`/book/${RIVERSIDE}?specialist=${WONGSAKUL}&date=${date}`);
   await page.getByRole("button", { name: "Change" }).click();
-  await page.getByLabel("Your time zone").selectOption("Asia/Bangkok");
-  await expect(page.getByText("Bangkok is on the same time as you")).toBeVisible();
-  await expect(page.getByRole("option", { name: /^10:00 AM Bangkok time/ })).not.toHaveAccessibleName(/your time/);
+  const select = page.getByLabel("Your time zone");
+  // Arrowing through the list applies as it goes, but doesn't close it or lose focus
+  await select.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(select).toBeFocused();
+  await select.selectOption("Asia/Bangkok");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("button", { name: "Change" })).toBeFocused();
+  await expect(page.getByText("Thailand time is the same as yours")).toBeVisible();
+  await expect(page.getByRole("option", { name: /^10:00 AM Thailand time/ })).not.toHaveAccessibleName(/your time/);
 });
 
 test("the calendar is one keyboard stop, moves by day, week and month, and says why a day is unavailable", async ({
@@ -157,7 +166,8 @@ test("a specialist whose hours run past closing: only the overlap is offered, an
   await page.locator(`[data-date="${date}"]`).click();
   await expect(page.getByText(/sees patients 6:00 PM – 9:00 PM, but the provider closes at/)).toBeVisible();
   // Nothing at or after 8:00 PM (Riverside's latest closing)
-  await expect(page.getByRole("option", { name: /^8:\d\d PM Bangkok/ })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: /^8:\d\d PM Thailand/ })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: /^7:40 PM Thailand/ })).toHaveCount(1); // the last that ends by 8
 });
 
 test("a group of 3 can only start where 3 times in a row are free", async ({ page }) => {
@@ -190,7 +200,7 @@ test("someone else got there first: choices are kept and the closest times are o
   await expect(page.getByRole("radio", { name: "2 people" })).toBeChecked();
   await expect(page.locator(`[data-date="${date}"]`)).toHaveAttribute("aria-selected", "true");
 
-  const alternative = summary(page).getByRole("button", { name: /^Choose .* Bangkok time/ }).first();
+  const alternative = summary(page).getByRole("button", { name: /^Choose .* Thailand time/ }).first();
   await alternative.click();
   const book = summary(page).getByRole("button", { name: /^Book / });
   await expect(book).toBeFocused();
@@ -215,16 +225,30 @@ test("a reply that never arrives: choices lock, nothing can be booked twice, and
   await expect(page.getByRole("radio", { name: "2 people" })).toBeDisabled();
   await expect(summary(page).getByRole("button", { name: /^Book / })).toBeDisabled();
 
+  // A server error while checking proves nothing: it stays locked rather than inviting a second booking
+  await page.getByRole("button", { name: /mock api controls/i }).click();
+  await page.getByRole("combobox", { name: "POST /api/bookings behaviour" }).click();
+  await page.getByRole("option", { name: "Fail once" }).click();
+  await page.getByRole("combobox", { name: "POST /api/bookings failure type" }).click();
+  await page.getByRole("option", { name: "HTTP 500" }).click();
+  await page.keyboard.press("Escape");
+  await summary(page).getByRole("button", { name: "Check now" }).click();
+  await expect(summary(page).getByText(/We still couldn't find out whether your earlier request went through/)).toBeVisible();
+  await expect(page.getByRole("radio", { name: "2 people" })).toBeDisabled();
+
   // The same request key comes back with the booking that was made, not a 409 against itself
   await summary(page).getByRole("button", { name: "Check now" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "You're booked" })).toBeVisible();
 });
 
-test("if the times fail to load, Try again keeps every choice", async ({ page }) => {
+test("if the times fail to load, nothing can be booked unchecked, and Try again keeps every choice", async ({ page }) => {
   await setMockControls(page, { latency: "fast", rules: { "booking.slots": { mode: "always", kind: 500 } } });
   const date = await laterAvailableDate(page, RIVERSIDE, `specialistId=${WONGSAKUL}&people=2`);
-  await page.goto(`/book/${RIVERSIDE}?specialist=${WONGSAKUL}&people=2&date=${date}`);
+  // A time carried in the URL can't be confirmed while we can't see whether it's still free
+  await page.goto(`/book/${RIVERSIDE}?specialist=${WONGSAKUL}&people=2&date=${date}&time=10:00`);
   await expect(page.getByText(/we couldn't load the times/)).toBeVisible({ timeout: 15_000 });
+  await expect(summary(page).getByRole("button", { name: /^Book / })).toBeDisabled();
+  await expect(summary(page)).toContainText("we can't check this one is still free");
 
   await page.getByRole("button", { name: /mock api controls/i }).click();
   await page.getByRole("combobox", { name: "GET /api/providers/:id/slots behaviour" }).click();
@@ -267,14 +291,15 @@ test("rescheduling shows the old and new time side by side, then moves it", asyn
 
 test("time zones typed by hand are read and disclosed", async ({ page }) => {
   await page.goto("/book");
-  await expect(page.getByText(/listed as “UTC\+05:45”, which we read as Kathmandu time \(UTC\+5:45\)/)).toBeVisible();
-  await expect(page.getByText(/listed as “Nepal Standard Time”, which we read as Kathmandu time/)).toBeVisible();
+  await expect(page.getByText(/listed as “UTC\+05:45”, which we read as Nepal time \(UTC\+5:45\)/)).toBeVisible();
+  await expect(page.getByText(/listed as “Nepal Standard Time”, which we read as Nepal time/)).toBeVisible();
   await expect(page.getByText(/listed as “\(GMT\+5:45\)”/)).toBeVisible();
-  await expect(page.getByText(/haven't listed a time zone, so we're using Kolkata time \(UTC\+5:30\)/)).toBeVisible();
+  await expect(page.getByText(/haven't listed a time zone, so we're using India time \(UTC\+5:30\)/)).toBeVisible();
 
-  // "Asia/Katmandu " (old spelling, trailing space) is simply Kathmandu: same clock as this customer
+  // "Asia/Katmandu " (old spelling, trailing space) is simply Nepal time: the same clock as this customer
   await page.goto("/book/121");
-  await expect(page.getByText("Kathmandu is on the same time as you")).toBeVisible();
+  await expect(page.getByText("Nepal time is the same as yours")).toBeVisible();
+  await expect(page.getByText("Lumbini Polyclinic · Nepal")).toBeVisible(); // not "Kathmandu": that's the zone, not the place
 });
 
 test.describe("a customer in Bangkok booking late evening in India", () => {
@@ -284,7 +309,7 @@ test.describe("a customer in Bangkok booking late evening in India", () => {
     const date = await laterAvailableDate(page, 131);
     await page.goto(`/book/131?date=${date}`);
     // 11:00 PM in India is 12:30 AM the next day in Bangkok
-    await expect(page.getByRole("option", { name: /^11:00 PM Kolkata time/ })).toHaveAccessibleName(
+    await expect(page.getByRole("option", { name: /^11:00 PM India time/ })).toHaveAccessibleName(
       /12:30 AM, \w{3} \d{1,2} \w{3} your time in Bangkok/,
     );
     await expect(page.getByText("next day").first()).toBeVisible();

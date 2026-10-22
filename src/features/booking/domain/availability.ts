@@ -1,4 +1,4 @@
-import { addDays, compareDates, formatPlainDate, weekdayOf, type PlainDate } from "./plain-date";
+import { addDays, compareDates, formatPlainDate, toClock, weekdayOf, type PlainDate } from "./plain-date";
 import { groupStarts, hoursExplanation, planSlots, type PlannedSlot, type SlotPlan } from "./slots";
 import { BOOKING_WINDOW_DAYS, type Provider, type Specialist } from "./types";
 
@@ -56,8 +56,9 @@ export interface CurrentBooking {
   slotTimes: readonly string[];
 }
 
-export const slotKey = (specialistId: string, startMinutes: number) =>
-  `${specialistId}|${String(Math.floor(startMinutes / 60)).padStart(2, "0")}:${String(startMinutes % 60).padStart(2, "0")}`;
+/** How a slot is identified everywhere (client, server, sets of booked slots): "specialistId|HH:MM". */
+export const slotKeyOf = (specialistId: string, startTime: string) => `${specialistId}|${startTime}`;
+export const slotKey = (specialistId: string, startMinutes: number) => slotKeyOf(specialistId, toClock(startMinutes));
 
 export function bookingWindow(today: PlainDate) {
   return { first: today, last: addDays(today, BOOKING_WINDOW_DAYS - 1) };
@@ -78,9 +79,9 @@ export function describeDay(input: DayInput): { status: DayStatus; specialists: 
   const isToday = date === now.today;
   const inWindow = compareDates(date, window.first) >= 0 && compareDates(date, window.last) <= 0;
   const mine = input.current?.date === date ? input.current : undefined;
-  const currentKeys = new Set(mine?.slotTimes.map((t) => `${mine.specialistId}|${t}`));
+  const currentKeys = new Set(mine?.slotTimes.map((t) => slotKeyOf(mine.specialistId, t)));
   // Moving onto exactly where it already is isn't a change, so that start isn't offered
-  const currentStart = mine ? `${mine.specialistId}|${mine.slotTimes[0]}` : null;
+  const currentStart = mine?.slotTimes[0] ? slotKeyOf(mine.specialistId, mine.slotTimes[0]) : null;
 
   const chosen = provider.specialists.filter(
     (s) => !input.specialistId || s.id === input.specialistId,

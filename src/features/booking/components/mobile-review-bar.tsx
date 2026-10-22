@@ -46,7 +46,7 @@ export function MobileReviewBar({
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">
             {formatPlainDate(date)} · {formatClock(minutes)}{" "}
-            <span className="text-sm font-normal text-muted-foreground">{clocks.providerCity}</span>
+            <span className="text-sm font-normal text-muted-foreground">{clocks.providerLabel}</span>
           </p>
           {!clocks.same && (
             <p className="truncate text-xs text-muted-foreground">{formatCustomerTime(time)} your time</p>

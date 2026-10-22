@@ -19,6 +19,7 @@ import { AppointmentTime, GroupRun } from "./appointment-time";
 export interface ConfirmView {
   sending: boolean;
   unknown: PendingConfirm | null;
+  unknownDetail: string | null;
   failure: ConfirmFailure | null;
   /** The date and time the failed attempt asked for (for "10:40 AM was just taken"). */
   failedDate: PlainDate | null;
@@ -43,7 +44,7 @@ export function BookingSummary({
   clocks,
   online,
   slotProblem,
-  checking,
+  waitingFor,
   validationError,
   confirm,
   move,
@@ -57,8 +58,8 @@ export function BookingSummary({
   online: boolean;
   /** Why the chosen time can't be booked any more (taken, started, too few in a row). */
   slotProblem: string | null;
-  /** Fresh slot data is still loading for the chosen date. */
-  checking: boolean;
+  /** The chosen date's slots haven't loaded (yet, or at all), so the choice can't be checked. */
+  waitingFor: "times-loading" | "times-failed" | null;
   validationError: string | null;
   confirm: ConfirmView;
   move: { from: { date: PlainDate; startTime: string } } | null;
@@ -66,16 +67,18 @@ export function BookingSummary({
 }) {
   const specialist = slot ? provider.specialists.find((s) => s.id === slot.specialistId) : undefined;
   const ready = Boolean(date && slot && specialist && !slotProblem);
-  const verb = move ? "Move" : "Book";
+  const verb = move ? "Move to" : "Book";
   const blocked = !online
     ? "You're offline. Reconnect to confirm; your choices are kept."
     : confirm.unknown
       ? "Waiting to hear whether your last request went through."
       : !slot
         ? "Choose a time first."
-        : checking
-          ? "Checking the latest times…"
-          : null;
+        : waitingFor === "times-failed"
+          ? "We couldn't load this day's times, so we can't check this one is still free. Try again above."
+          : waitingFor === "times-loading"
+            ? "Checking the latest times…"
+            : null;
 
   return (
     <section aria-labelledby="summary-heading" className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-xs">
@@ -97,8 +100,8 @@ export function BookingSummary({
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Choose a date and a time. We&apos;ll show it here in {clocks.providerCity} time
-          {clocks.same ? "" : ` and in your ${clocks.customerCity} time`}.
+          Choose a date and a time. We&apos;ll show it here in {clocks.providerLabel} time
+          {clocks.same ? "" : ` and in your ${clocks.customerLabel} time`}.
         </p>
       )}
 
@@ -215,9 +218,10 @@ function Outcome({ provider, confirm, clocks, online }: { provider: Provider; co
         </AlertTitle>
         <AlertDescription className="text-warning-foreground">
           <p>
-            Your request for {formatPlainDate(r.date)}, {formatClock(parseClock(r.startTime) ?? 0)} ({clocks.providerCity}{" "}
-            time) was sent, but the connection dropped before {provider.name} replied.
+            Your request for {formatPlainDate(r.date)}, {formatClock(parseClock(r.startTime) ?? 0)} ({clocks.providerLabel}{" "}
+            time) was sent to {provider.name}, but we haven&apos;t had an answer.
           </p>
+          {confirm.unknownDetail && <p>{confirm.unknownDetail}</p>}
           <p>Your choices are locked until we know, so you can&apos;t book twice by accident.</p>
           {online ? (
             <Button type="button" size="sm" className="mt-2" onClick={confirm.onCheck}>
@@ -245,7 +249,7 @@ function Outcome({ provider, confirm, clocks, online }: { provider: Provider; co
         <CircleAlertIcon aria-hidden />
         <AlertTitle>
           <h3 ref={headingRef} tabIndex={-1} className="outline-none">
-            {wanted} was just taken
+            {failure.unavailable ? `${wanted} can't be booked any more` : `${wanted} was just taken`}
           </h3>
         </AlertTitle>
         <AlertDescription>
@@ -313,7 +317,7 @@ function Alternatives({
               variant="outline"
               className="h-auto flex-col gap-0 py-1.5 text-foreground"
               onClick={() => confirm.onAlternative(alt)}
-              aria-label={`Choose ${formatClock(alt.startMinutes)} ${clocks.providerCity} time${
+              aria-label={`Choose ${formatClock(alt.startMinutes)} ${clocks.providerLabel} time${
                 clocks.same ? "" : `, ${formatCustomerTime(clocks.dual(date, alt.startMinutes))} your time`
               }${name ? `, with ${name}` : ""}`}
             >

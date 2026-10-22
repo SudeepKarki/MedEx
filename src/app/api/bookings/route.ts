@@ -42,7 +42,10 @@ export async function POST(request: Request) {
   if (failure === "409" && !(body.idempotencyKey && db.replies.has(body.idempotencyKey))) {
     takeBySomeoneElse(db, body.providerId, body.date, body.specialistId, body.startTime);
   }
-  const result = createBooking(db, body, { now: Date.now(), newId: () => newBookingId(body.date) });
+  const result = createBooking(db, body, {
+    now: Date.now(),
+    newId: () => newBookingId(body.date, (id) => db.bookings.has(id)),
+  });
   if (failure === "lost-response") {
     await holdUntilClientGivesUp(request);
     return Response.json({ message: "Simulated lost response" }, { status: 504 });

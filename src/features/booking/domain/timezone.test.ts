@@ -5,6 +5,7 @@ import {
   fromWallClock,
   offsetMinutes,
   parseOffset,
+  providerZoneLabel,
   resolveProviderZone,
   sameClock,
   toWallClock,
@@ -133,5 +134,27 @@ describe("labels", () => {
   it("treats aliases and equal offsets as the same clock", () => {
     expect(sameClock({ kind: "iana", id: "Asia/Katmandu" }, kathmandu, at)).toBe(true);
     expect(sameClock(bangkok, kathmandu, at)).toBe(false);
+  });
+});
+
+describe("providerZoneLabel", () => {
+  it("names a provider's clock by its country, not by the zone's city", () => {
+    expect(providerZoneLabel({ kind: "iana", id: "Asia/Katmandu" }, "NP")).toBe("Nepal");
+    expect(providerZoneLabel({ kind: "iana", id: "Asia/Bangkok" }, "TH")).toBe("Thailand");
+    expect(providerZoneLabel({ kind: "iana", id: "Asia/Kolkata" }, "IN")).toBe("India");
+  });
+
+  it("falls back to the zone's own name when it isn't the country's", () => {
+    expect(providerZoneLabel({ kind: "iana", id: "Asia/Dubai" }, "IN")).toBe("Dubai");
+    expect(providerZoneLabel({ kind: "offset", minutes: 330 }, "NP")).toBe("UTC+5:30");
+    expect(providerZoneLabel({ kind: "iana", id: "Asia/Bangkok" }, null)).toBe("Bangkok");
+  });
+});
+
+describe("fromWallClock in a DST gap and overlap", () => {
+  const ny: Zone = { kind: "iana", id: "America/New_York" };
+  it("reads a time that doesn't exist an hour early, and a repeated time as its first occurrence", () => {
+    expect(toWallClock(ny, fromWallClock(ny, "2026-03-08", 150)).minutes).toBe(90); // 02:30 → 01:30 EST
+    expect(fromWallClock(ny, "2026-11-01", 90)).toBe(Date.UTC(2026, 10, 1, 5, 30)); // 01:30 EDT
   });
 });

@@ -21,7 +21,7 @@ export function SpecialistPicker({
   value,
   onChange,
   nextAvailable,
-  providerCity,
+  providerLabel,
   disabled,
 }: {
   provider: Provider;
@@ -29,7 +29,7 @@ export function SpecialistPicker({
   onChange: (specialistId: string | null) => void;
   /** undefined while loading */
   nextAvailable: Record<string, PlainDate | null> | undefined;
-  providerCity: string;
+  providerLabel: string;
   disabled: boolean;
 }) {
   const name = useId();
@@ -62,7 +62,7 @@ export function SpecialistPicker({
                   {specialist.speciality}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  Sees patients {formatClock(c.startMinutes)} – {formatClock(c.endMinutes)} ({providerCity}),{" "}
+                  Sees patients {formatClock(c.startMinutes)} – {formatClock(c.endMinutes)} ({providerLabel} time),{" "}
                   {c.durationMinutes} min each
                 </span>
                 {nextAvailable === undefined ? (

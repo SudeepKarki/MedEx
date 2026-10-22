@@ -208,9 +208,10 @@ export function toWallClock(zone: Zone, instant: number): WallClock {
  * The instant at which a zone's clock shows `date` at `minutes`.
  *
  * Start from the wall time read as UTC, subtract the offset in force then,
- * and correct once more in case that crossed an offset change. In a DST gap
- * (a wall time that doesn't exist) this lands just after it; in an overlap,
- * on the first occurrence. The zones in this data have no DST.
+ * and correct once more in case that crossed an offset change. A wall time
+ * inside a DST gap (one that doesn't exist) comes out an hour early on the
+ * clock (New York 02:30 on the spring-forward day → 01:30 EST); one in an
+ * overlap gets its first occurrence. The zones in this data have no DST.
  */
 export function fromWallClock(zone: Zone, date: PlainDate, minutes: number): number {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
@@ -254,6 +255,20 @@ export function zoneKey(zone: Zone): string {
 }
 
 /** "Bangkok", "Kathmandu", "UTC+5:45": what people call the zone. */
+export const COUNTRY_NAMES: Record<string, string> = { TH: "Thailand", NP: "Nepal", IN: "India" };
+
+/**
+ * What to call a provider's clock. A zone's city isn't where the provider is
+ * (Lumbini isn't in Kathmandu), so a provider on its country's zone is named
+ * by the country ("Thailand time"); anything else by the zone itself.
+ */
+export function providerZoneLabel(zone: Zone, country: string | null): string {
+  const countryZone = country ? COUNTRY_ZONES[country] : undefined;
+  const name = country ? COUNTRY_NAMES[country] : undefined;
+  if (countryZone && name && zoneKey(zone) === zoneKey({ kind: "iana", id: countryZone })) return name;
+  return zoneCity(zone);
+}
+
 export function zoneCity(zone: Zone): string {
   if (zone.kind === "offset") return formatOffset(zone.minutes);
   const id = zoneKey(zone);

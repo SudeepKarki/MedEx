@@ -24,15 +24,19 @@ export function useProvider(id: number, enabled = true) {
   return useQuery({ ...providerQuery(id), enabled });
 }
 
+/**
+ * `today` is the provider's date by the server's clock. It's part of the key,
+ * so a page left open past the provider's midnight fetches the new window.
+ */
 export function useAvailability(
   providerId: number,
   options: { specialistId: string | null; people: number; exceptBooking?: string },
-  enabled: boolean,
+  today: PlainDate | null,
 ) {
   return useQuery({
-    queryKey: [...bookingKeys.availability(providerId), options],
+    queryKey: [...bookingKeys.availability(providerId), options, today],
     queryFn: ({ signal }) => fetchAvailability(providerId, options, signal),
-    enabled,
+    enabled: today !== null,
     // Availability changes as people book, so it's fresh for a minute, not five
     staleTime: 60_000,
     // Changing the specialist or group size keeps the old calendar on screen (marked as updating)

@@ -30,14 +30,14 @@ export function AppointmentTime({
     <div className={cn("flex flex-col gap-0.5", className)}>
       <p className={cn("font-heading text-lg font-semibold", struck && "line-through decoration-2")}>
         {formatPlainDate(date)} · {formatClock(minutes)}
-        <span className="ml-1.5 text-sm font-normal text-muted-foreground">{clocks.providerCity} time</span>
+        <span className="ml-1.5 text-sm font-normal text-muted-foreground">{clocks.providerLabel} time</span>
       </p>
       {!clocks.same && (
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <UserIcon aria-hidden className="size-3.5 shrink-0" />
           <span>
             {time.dayShift === 0 ? formatClock(time.customer.minutes) : formatCustomerTime(time)} your time in{" "}
-            {clocks.customerCity}
+            {clocks.customerLabel}
           </span>
         </p>
       )}

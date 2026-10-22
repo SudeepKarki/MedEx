@@ -1,4 +1,4 @@
-import { describeDay, slotKey, type ProviderNow } from "@/features/booking/domain/availability";
+import { describeDay, slotKey, slotKeyOf, type ProviderNow } from "@/features/booking/domain/availability";
 import { addDays, formatClock, isPlainDate, parseClock, toClock, type PlainDate } from "@/features/booking/domain/plain-date";
 import { groupIndices } from "@/features/booking/domain/slots";
 import { toWallClock } from "@/features/booking/domain/timezone";
@@ -20,11 +20,11 @@ export function occupied(db: BookingDb, providerId: number, date: PlainDate, exc
   const set = new Set<string>();
   for (const key of db.taken.get(providerId) ?? []) {
     const [d, specialistId, time] = key.split("|");
-    if (d === date) set.add(`${specialistId}|${time}`);
+    if (d === date && specialistId && time) set.add(slotKeyOf(specialistId, time));
   }
   for (const booking of db.bookings.values()) {
     if (booking.providerId !== providerId || booking.date !== date || booking.bookingId === except) continue;
-    for (const time of booking.slotTimes) set.add(`${booking.specialistId}|${time}`);
+    for (const time of booking.slotTimes) set.add(slotKeyOf(booking.specialistId, time));
   }
   return set;
 }

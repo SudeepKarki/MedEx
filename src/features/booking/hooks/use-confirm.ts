@@ -50,7 +50,8 @@ export function useConfirm({
       onConfirmed(booking);
     },
     onError: (error) => {
-      const result = classifyConfirmFailure(error);
+      const uncertain = useConfirmAttempts.getState().pending[scope]?.uncertain ?? false;
+      const result = classifyConfirmFailure(error, { uncertain });
       if (result.kind === "unknown") useConfirmAttempts.getState().markUnknown(scope);
       else useConfirmAttempts.getState().settle(scope);
       if (result.kind === "taken") invalidateAvailability(queryClient, providerId);
@@ -63,7 +64,7 @@ export function useConfirm({
   });
 
   const unknown = pending?.status === "unknown" && !mutation.isPending ? pending : null;
-  const { mutate, isPending } = mutation;
+  const { mutate, isPending, variables } = mutation;
 
   // Back online with an unanswered attempt: find out what happened
   useEffect(() => {
@@ -79,9 +80,13 @@ export function useConfirm({
     /** Re-send the unanswered attempt with its original key. */
     check: () => unknown && mutate(unknown.request),
     isSending: isPending,
+    /** What the last send asked for (also after a reload's "Check now"), e.g. for "10:40 AM was just taken". */
+    lastRequest: variables ?? null,
     /** An attempt we have no answer for (from this page or before a reload). */
     unknown,
     failure: unknown ? null : failure,
+    /** Why it's still unknown, from the last try in this tab (null after a reload). */
+    unknownDetail: unknown && failure?.kind === "unknown" ? failure.message : null,
     clearFailure: () => setFailure(null),
   };
 }
