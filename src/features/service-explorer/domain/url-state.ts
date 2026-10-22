@@ -27,7 +27,7 @@ const PARAM = {
   page: "page",
 } as const;
 
-const MAX_QUERY_LENGTH = 100;
+export const MAX_QUERY_LENGTH = 100;
 const MAX_PAGE = 10_000;
 const CATEGORY_KEY = /^[a-z_]+\.[a-z0-9-]+(~[a-z0-9-]+)?$/;
 const SUBCATEGORY_KEY = /^[a-z_]+\.[a-z0-9-]+(~[a-z0-9-]+)?\.[a-z0-9-]+$/;
@@ -77,8 +77,12 @@ export function parseFilters(source: ParamSource): ExplorerFilters {
   const page = wholeNumber(getParam(source, PARAM.page));
   const home = getParam(source, PARAM.homeTest);
 
+  const countries = list(source, PARAM.countries)
+    .map((c) => c.toUpperCase())
+    .filter((c) => /^[A-Z]{2}$/.test(c));
+
   return {
-    q: (getParam(source, PARAM.q) ?? "").trim().slice(0, MAX_QUERY_LENGTH),
+    q: truncateText((getParam(source, PARAM.q) ?? "").trim(), MAX_QUERY_LENGTH),
     types: list(source, PARAM.types).filter(isServiceType),
     categories,
     // A subcategory only means something under its selected parent.
@@ -88,10 +92,12 @@ export function parseFilters(source: ParamSource): ExplorerFilters {
     providers: list(source, PARAM.providers)
       .map((v) => wholeNumber(v))
       .filter((v): v is number => v !== null && v > 0),
-    countries: list(source, PARAM.countries)
-      .map((c) => c.toUpperCase())
-      .filter((c) => /^[A-Z]{2}$/.test(c)),
-    cities: list(source, PARAM.cities).filter((k) => CITY_KEY.test(k)),
+    countries,
+    // A city inside a selected country is already included; keeping it would
+    // make "untick this city" ambiguous.
+    cities: list(source, PARAM.cities).filter(
+      (k) => CITY_KEY.test(k) && !countries.includes(k.slice(0, 2)),
+    ),
     currency,
     priceMin,
     priceMax,
@@ -101,6 +107,12 @@ export function parseFilters(source: ParamSource): ExplorerFilters {
       : DEFAULT_FILTERS.sort,
     page: page !== null && page >= 1 ? Math.min(page, MAX_PAGE) : 1,
   };
+}
+
+/** Cuts by characters (code points), never through the middle of an emoji. */
+export function truncateText(value: string, max: number): string {
+  const chars = Array.from(value);
+  return chars.length <= max ? value : chars.slice(0, max).join("");
 }
 
 const typeOrder = (t: string) => (SERVICE_TYPES as readonly string[]).indexOf(t);
@@ -119,7 +131,8 @@ export function serializeFilters(filters: ExplorerFilters): string {
     add(key, strings.sort(sort).join(","));
   };
 
-  const q = filters.q.trim();
+  // toWellFormed: a lone surrogate (half an emoji) would make encodeURIComponent throw
+  const q = filters.q.trim().toWellFormed();
   if (q) add(PARAM.q, q);
   addList(PARAM.types, filters.types, (a, b) => typeOrder(a) - typeOrder(b));
   addList(PARAM.categories, filters.categories);

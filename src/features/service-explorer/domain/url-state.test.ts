@@ -63,6 +63,23 @@ describe("URL state", () => {
     expect(parse("sub=package.ultrasound.thyroid").subcategories).toEqual([]);
   });
 
+  it("never cuts an emoji in half when truncating long searches", () => {
+    const q = `${"a".repeat(99)}😀tail`;
+    const filters = parse(`q=${encodeURIComponent(q)}`);
+    expect(Array.from(filters.q)).toHaveLength(100);
+    expect(filters.q.endsWith("😀")).toBe(true);
+    // ...and serialising it can't throw "URI malformed"
+    expect(() => serializeFilters(filters)).not.toThrow();
+    expect(() => serializeFilters({ ...DEFAULT_FILTERS, q: "a\uD83D" })).not.toThrow();
+  });
+
+  it("drops cities whose whole country is already selected", () => {
+    expect(parse("country=TH&city=TH.bangkok,NP.pokhara")).toMatchObject({
+      countries: ["TH"],
+      cities: ["NP.pokhara"],
+    });
+  });
+
   it("encodes free text safely", () => {
     const query = serializeFilters({ ...DEFAULT_FILTERS, q: "a&b=c, d" });
     expect(parse(query).q).toBe("a&b=c, d");

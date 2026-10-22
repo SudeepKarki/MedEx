@@ -3,6 +3,7 @@
 import { SearchIcon, XIcon } from "lucide-react";
 import { useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { MAX_QUERY_LENGTH } from "../domain/url-state";
 
 /**
  * Free-text search across service titles, provider names and categories.
@@ -40,6 +41,8 @@ export function SearchBox({
         }}
         placeholder="Search tests, check-ups, clinics…"
         autoComplete="off"
+        // Same limit as the URL, so the box never gets cut back while typing
+        maxLength={MAX_QUERY_LENGTH}
         spellCheck={false}
         enterKeyHint="search"
         className="h-12 w-full rounded-xl border border-input bg-card pr-12 pl-12 text-base shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
