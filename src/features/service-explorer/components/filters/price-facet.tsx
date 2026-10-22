@@ -4,9 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { NativeRadio } from "@/components/form/native-checkbox";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Slider } from "@/components/ui/slider";
+import { RangeSlider } from "@/components/form/range-slider";
 import { currencyName, formatCount, formatMoneyWhole, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { Facets } from "../../domain/engine";
@@ -67,20 +67,25 @@ export function PriceFacet({
           : "Prices aren't converted between currencies. Choose one to filter by price."
       }
     >
-      <RadioGroup
-        value={filters.currency ?? ANY}
-        onValueChange={setCurrency}
-        aria-label="Currency"
-        className="mt-1 gap-0"
-      >
-        <CurrencyOption id={`${groupId}-any`} value={ANY} label="Any currency" />
+      <div role="radiogroup" aria-label="Currency" className="mt-1 flex flex-col">
+        <CurrencyOption
+          id={`${groupId}-any`}
+          name={groupId}
+          value={ANY}
+          checked={filters.currency === null}
+          onSelect={setCurrency}
+          label="Any currency"
+        />
         {catalog.currencies.map((code) => {
           const count = facets.currencies.get(code) ?? 0;
           return (
             <CurrencyOption
               key={code}
               id={`${groupId}-${code}`}
+              name={groupId}
               value={code}
+              checked={filters.currency === code}
+              onSelect={setCurrency}
               label={
                 <>
                   {currencyName(code)} <span className="text-muted-foreground">({code})</span>
@@ -91,7 +96,7 @@ export function PriceFacet({
             />
           );
         })}
-      </RadioGroup>
+      </div>
 
       {rangeCurrency && (
         <PriceRange
@@ -108,20 +113,33 @@ export function PriceFacet({
 
 function CurrencyOption({
   id,
+  name,
   value,
+  checked,
+  onSelect,
   label,
   count,
   disabled,
 }: {
   id: string;
+  name: string;
   value: string;
+  checked: boolean;
+  onSelect: (value: string) => void;
   label: React.ReactNode;
   count?: number;
   disabled?: boolean;
 }) {
   return (
     <div className="flex min-h-9 items-center gap-3 rounded-md px-2 hover:bg-muted/70 pointer-coarse:min-h-11">
-      <RadioGroupItem id={id} value={value} disabled={disabled} />
+      <NativeRadio
+        id={id}
+        name={name}
+        value={value}
+        checked={checked}
+        disabled={disabled}
+        onChange={() => onSelect(value)}
+      />
       <Label
         htmlFor={id}
         className={cn(
@@ -183,23 +201,25 @@ function PriceRange({
     form.reset({ min: toField(filters.priceMin), max: toField(filters.priceMax) });
   }, [filters.priceMin, filters.priceMax, form]);
 
-  // While dragging, the slider shows its own value; it isn't committed yet.
+  // While dragging, the histogram follows the slider; it isn't committed yet.
   const [dragging, setDragging] = useState<[number, number] | null>(null);
-  const committed: [number, number] = [filters.priceMin ?? 0, filters.priceMax ?? scale.max];
-  const sliderValue = dragging ?? [
-    Math.min(committed[0], scale.max),
-    Math.min(committed[1], scale.max),
+  const committed: [number, number] = [
+    Math.min(filters.priceMin ?? 0, scale.max),
+    Math.min(filters.priceMax ?? scale.max, scale.max),
   ];
+  const sliderValue = dragging ?? committed;
 
-  const apply = (min: number | null, max: number | null) =>
+  const apply = ([min, max]: [number, number]) => {
+    setDragging(null);
     onChange({
       ...filters,
       currency,
       // The slider's ends mean "no limit"
-      priceMin: min === 0 ? null : min,
-      priceMax: max !== null && max >= scale.max ? null : max,
+      priceMin: min <= 0 ? null : min,
+      priceMax: max >= scale.max ? null : max,
       page: 1,
     });
+  };
 
   const submit = form.handleSubmit(({ min, max }) => {
     const nextMin = fromField(min);
@@ -231,24 +251,20 @@ function PriceRange({
           );
         })}
       </div>
-      <Slider
-        className="px-2"
+      <RangeSlider
+        className="mx-2"
         min={0}
         max={scale.max}
         step={scale.step}
-        minStepsBetweenThumbs={0}
-        value={sliderValue}
-        thumbLabels={[`Minimum price in ${currency}`, `Maximum price in ${currency}`]}
-        onValueChange={(value) => {
-          const [min = 0, max = scale.max] = value;
+        value={committed}
+        labels={[`Minimum price in ${currency}`, `Maximum price in ${currency}`]}
+        formatValue={(v) => formatMoneyWhole(v, currency)}
+        onInput={([min, max]) => {
           setDragging([min, max]);
           form.setValue("min", min === 0 ? "" : String(min));
           form.setValue("max", max >= scale.max ? "" : String(max));
         }}
-        onValueCommit={(value) => {
-          setDragging(null);
-          apply(value[0] ?? 0, value[1] ?? scale.max);
-        }}
+        onCommit={apply}
       />
       <form
         className="grid grid-cols-2 gap-2"

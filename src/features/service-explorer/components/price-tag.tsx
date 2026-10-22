@@ -1,6 +1,5 @@
 import { InfoIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { LazyPopover } from "@/components/form/lazy-popover";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { ServiceResult } from "../domain/engine";
@@ -105,43 +104,36 @@ function PriceBreakdown({
   const pct = (d: { kind: string; percent?: { toString(): string } } | null) =>
     d?.kind === "percent" && d.percent ? ` (${d.percent.toString()}%)` : "";
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={`Price breakdown for ${title}`}>
-          <InfoIcon />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72">
-        <p className="mb-2 text-sm font-semibold">How this price is made up</p>
-        <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
-          <dt className="text-muted-foreground">Price</dt>
-          <dd className="text-right">{formatMoney(quote.listPrice, currency)}</dd>
-          {quote.discount && (
-            <>
-              <dt className="text-muted-foreground">Discount{pct(quote.discount)}</dt>
-              <dd className="text-right text-success">
-                −{formatMoney(quote.discountAmount, currency)}
-              </dd>
-            </>
-          )}
-          {quote.charge && (
-            <>
-              <dt className="text-muted-foreground">Service charge{pct(quote.charge)}</dt>
-              <dd className="text-right">+{formatMoney(quote.chargeAmount, currency)}</dd>
-            </>
-          )}
-          <dt className="border-t pt-1 font-semibold">You pay</dt>
-          <dd className="border-t pt-1 text-right font-semibold">
-            {formatMoney(quote.final, currency)}
-          </dd>
-        </dl>
-        {quote.discount && quote.charge && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            The service charge is worked out on the discounted price.
-          </p>
+    <LazyPopover label={`Price breakdown for ${title}`} icon={<InfoIcon />} contentClassName="w-72">
+      <p className="mb-2 text-sm font-semibold">How this price is made up</p>
+      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
+        <dt className="text-muted-foreground">Price</dt>
+        <dd className="text-right">{formatMoney(quote.listPrice, currency)}</dd>
+        {quote.discount && (
+          <>
+            <dt className="text-muted-foreground">Discount{pct(quote.discount)}</dt>
+            <dd className="text-right text-success">
+              −{formatMoney(quote.discountAmount, currency)}
+            </dd>
+          </>
         )}
-      </PopoverContent>
-    </Popover>
+        {quote.charge && (
+          <>
+            <dt className="text-muted-foreground">Service charge{pct(quote.charge)}</dt>
+            <dd className="text-right">+{formatMoney(quote.chargeAmount, currency)}</dd>
+          </>
+        )}
+        <dt className="border-t pt-1 font-semibold">You pay</dt>
+        <dd className="border-t pt-1 text-right font-semibold">
+          {formatMoney(quote.final, currency)}
+        </dd>
+      </dl>
+      {quote.discount && quote.charge && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          The service charge is worked out on the discounted price.
+        </p>
+      )}
+    </LazyPopover>
   );
 }
 
@@ -157,45 +149,42 @@ function DurationOptions({
   highlightId: string | null;
 }) {
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={`All durations and prices for ${title}`}>
-          <InfoIcon />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-64">
-        <p className="mb-1 text-sm font-semibold">Choose a duration when booking</p>
-        <p className="mb-2 text-xs text-muted-foreground">
-          The price depends on how long the treatment is.
-        </p>
-        <table className="w-full text-sm tabular-nums">
-          <caption className="sr-only">Durations and prices for {title}</caption>
-          <thead className="sr-only">
-            <tr>
-              <th scope="col">Duration</th>
-              <th scope="col">Price</th>
+    <LazyPopover
+      label={`All durations and prices for ${title}`}
+      icon={<InfoIcon />}
+      contentClassName="w-64"
+    >
+      <p className="mb-1 text-sm font-semibold">Choose a duration when booking</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        The price depends on how long the treatment is.
+      </p>
+      <table className="w-full text-sm tabular-nums">
+        <caption className="sr-only">Durations and prices for {title}</caption>
+        <thead className="sr-only">
+          <tr>
+            <th scope="col">Duration</th>
+            <th scope="col">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {options.map((option) => (
+            <tr
+              key={option.optionId ?? option.durationMinutes}
+              className={cn(option.optionId === highlightId && "font-semibold")}
+            >
+              <td className="py-1">{durationLabel(option.durationMinutes)}</td>
+              <td className="py-1 text-right">
+                {option.discount && (
+                  <s className="mr-2 text-xs text-muted-foreground">
+                    {formatMoney(option.withoutDiscount, currency)}
+                  </s>
+                )}
+                {formatMoney(option.final, currency)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {options.map((option) => (
-              <tr
-                key={option.optionId ?? option.durationMinutes}
-                className={cn(option.optionId === highlightId && "font-semibold")}
-              >
-                <td className="py-1">{durationLabel(option.durationMinutes)}</td>
-                <td className="py-1 text-right">
-                  {option.discount && (
-                    <s className="mr-2 text-xs text-muted-foreground">
-                      {formatMoney(option.withoutDiscount, currency)}
-                    </s>
-                  )}
-                  {formatMoney(option.final, currency)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </PopoverContent>
-    </Popover>
+          ))}
+        </tbody>
+      </table>
+    </LazyPopover>
   );
 }

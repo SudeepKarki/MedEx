@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { recordMetric, timed } from "@/lib/dev-metrics/store";
 import { computeView, type ExplorerIndex } from "../domain/engine";
 import type { ExplorerFilters } from "../domain/filters";
@@ -13,19 +13,15 @@ export function markFilterInteraction() {
 }
 
 /**
- * Computes results and facet counts from a *deferred* copy of the filters, so
- * React renders the urgent update (the checkbox ticking, the letter appearing)
- * first and the results right after, never blocking input.
+ * Results and facet counts for the given filters (one engine pass, ~1 ms for
+ * all 3,200 services). The caller decides what to defer: the explorer defers
+ * only the search text, so a click renders once and a keystroke never waits.
  */
 export function useExplorerView(index: ExplorerIndex | null, filters: ExplorerFilters) {
-  const deferredFilters = useDeferredValue(filters);
-
   const view = useMemo(
     () =>
-      index
-        ? timed("Engine: filter + count facets", () => computeView(index, deferredFilters))
-        : null,
-    [index, deferredFilters],
+      index ? timed("Engine: filter + count facets", () => computeView(index, filters)) : null,
+    [index, filters],
   );
 
   useEffect(() => {
@@ -38,9 +34,5 @@ export function useExplorerView(index: ExplorerIndex | null, filters: ExplorerFi
     );
   }, [view]);
 
-  return {
-    view,
-    /** The results on screen are from slightly older filters (a render is pending). */
-    isUpdating: filters !== deferredFilters,
-  };
+  return view;
 }

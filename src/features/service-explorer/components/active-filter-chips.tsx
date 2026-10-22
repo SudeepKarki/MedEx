@@ -120,7 +120,15 @@ export function ActiveFilterChips({
 }) {
   const chips = buildChips(filters, catalog);
   const listRef = useRef<HTMLUListElement>(null);
-  if (chips.length === 0) return null;
+  // The row keeps its height when empty, so adding the first filter doesn't
+  // push the results down (layout shift).
+  if (chips.length === 0) {
+    return (
+      <p className="flex min-h-8 items-center text-sm text-muted-foreground">
+        No filters applied. Use the filters to narrow down.
+      </p>
+    );
+  }
 
   const remove = (index: number) => {
     onChange(chips[index]!.remove());
@@ -134,7 +142,7 @@ export function ActiveFilterChips({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-h-8 flex-wrap items-center gap-2">
       <h3 className="sr-only">Active filters</h3>
       <ul ref={listRef} className="flex flex-wrap items-center gap-2">
         {chips.map((chip, index) => (

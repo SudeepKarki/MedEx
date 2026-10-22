@@ -27,7 +27,11 @@ export function ResultsList({
         const startsBlock =
           showCurrencyHeadings && currency && currency !== providers[i - 1]?.provider.currency;
         return (
-          <Fragment key={result.provider.id}>
+          // Keyed by position, not provider: when results change, React updates
+          // the existing cards' text instead of tearing down and rebuilding the
+          // DOM (much cheaper, and the list doesn't jump). Card-local state is
+          // tied to the provider id inside ProviderCard, so nothing leaks.
+          <Fragment key={i}>
             {startsBlock && (
               <li aria-hidden className="flex items-center gap-3 pt-2 first:pt-0">
                 <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">

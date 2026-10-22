@@ -2,7 +2,7 @@
 
 import { InfoIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { announce } from "@/components/app/live-announcer";
 import { useIsClient } from "@/hooks/use-is-client";
@@ -48,24 +48,46 @@ export function ServiceExplorer() {
     [setFilters],
   );
 
-  // The search box runs ahead of the URL (see useSearchDraft).
-  const [query, setQuery] = useSearchDraft(urlFilters.q, (q, mode) =>
-    navigate({ ...urlFilters, q, page: 1 }, mode),
-  );
-  const draftFilters = useMemo<ExplorerFilters>(
-    () =>
-      query.trim() === urlFilters.q ? urlFilters : { ...urlFilters, q: query.trim(), page: 1 },
-    [query, urlFilters],
-  );
-
   // Drop values the catalog doesn't know (old links), once it has loaded.
   const sanitized = useMemo(
-    () => (catalog ? sanitizeFilters(draftFilters, catalog) : null),
-    [catalog, draftFilters],
+    () => (catalog ? sanitizeFilters(urlFilters, catalog) : null),
+    [catalog, urlFilters],
   );
-  const filters = sanitized?.filters ?? draftFilters;
+  /** What the URL says, cleaned. Stable while the customer is typing. */
+  const appliedFilters = sanitized?.filters ?? urlFilters;
 
-  const { view, isUpdating } = useExplorerView(index, filters);
+  // The search box runs ahead of the URL (see useSearchDraft).
+  const [query, setQuery] = useSearchDraft(urlFilters.q, (q, mode) =>
+    navigate({ ...appliedFilters, q, page: 1 }, mode),
+  );
+  const queryRef = useRef(query);
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
+  // Typing must never wait for results, so only the search text is deferred:
+  // React renders the keystroke first and recomputes results in the
+  // background. Clicks change the URL and render once, in a single pass.
+  const deferredQuery = useDeferredValue(query.trim());
+  /** What the results show: the applied filters plus the (deferred) search text. */
+  const filters = useMemo<ExplorerFilters>(
+    () =>
+      deferredQuery === appliedFilters.q
+        ? appliedFilters
+        : { ...appliedFilters, q: deferredQuery, page: 1 },
+    [deferredQuery, appliedFilters],
+  );
+  const isUpdating = deferredQuery !== query.trim();
+
+  // The filter panel never shows the search text, so it gets the applied
+  // filters and a stable handler that adds the current search back in. That
+  // keeps the whole panel out of the render for each keystroke.
+  const onPanelChange = useCallback(
+    (next: ExplorerFilters) => navigate({ ...next, q: queryRef.current.trim() }),
+    [navigate],
+  );
+
+  const view = useExplorerView(index, filters);
 
   // The explorer can hydrate after the providers have already noticed we're
   // offline; reading that only after hydration keeps server and client HTML equal.
@@ -112,10 +134,10 @@ export function ServiceExplorer() {
             <h2 className="sr-only">Filters</h2>
             {view && catalog ? (
               <FilterPanel
-                filters={filters}
+                filters={appliedFilters}
                 facets={view.facets}
                 catalog={catalog}
-                onChange={navigate}
+                onChange={onPanelChange}
               />
             ) : catalogState.error || waitingForNetwork ? null : (
               <FiltersSkeleton />
@@ -276,7 +298,7 @@ function useUrlHousekeeping({
           description: `Removed: ${sanitized.dropped.join(", ")}.`,
         });
       }
-      setFilters({ ...sanitized.filters, q: urlFilters.q }, "replace");
+      setFilters(sanitized.filters, "replace");
       return;
     }
     if (settledView && settledView.page !== urlFilters.page) {

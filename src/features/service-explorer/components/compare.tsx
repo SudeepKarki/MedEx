@@ -85,17 +85,6 @@ function CompareDialog({
   filters: ExplorerFilters;
   ids: number[];
 }) {
-  const results = useMemo(() => {
-    const view = computeView(index, { ...filters, providers: ids, page: 1 });
-    // All selected providers fit on one page (max 3 < page size).
-    const byId = new Map(view.providers.map((p) => [p.provider.id, p]));
-    return ids.map((id) => ({
-      id,
-      provider: index.catalog.providers.get(id),
-      result: byId.get(id),
-    }));
-  }, [index, filters, ids]);
-
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -112,106 +101,131 @@ function CompareDialog({
             aren&apos;t converted.
           </DialogDescription>
         </DialogHeader>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] border-collapse text-sm">
-            <caption className="sr-only">Side-by-side comparison of selected providers</caption>
-            <thead>
-              <tr>
-                <td className="w-36" />
-                {results.map(({ id, provider }) => (
-                  <th key={id} scope="col" className="p-3 text-left align-top">
-                    {provider && (
-                      <div className="flex items-center gap-2">
-                        <ProviderAvatar id={id} name={provider.name} className="size-9" />
-                        <span className="font-heading font-semibold">{provider.name}</span>
-                      </div>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="[&_td]:p-3 [&_td]:align-top [&_th]:p-3 [&_th]:text-left [&_th]:align-top [&_th]:font-medium [&_th]:text-muted-foreground [&_tr]:border-t">
-              <Row
-                label="Rating"
-                cells={results}
-                render={({ provider }) => provider && <ProviderRating provider={provider} />}
-              />
-              <Row
-                label="Location"
-                cells={results}
-                render={({ provider }) =>
-                  provider?.city && provider.country
-                    ? `${provider.city.name}, ${provider.country.name}`
-                    : "Not listed"
-                }
-              />
-              <Row
-                label="Prices in"
-                cells={results}
-                render={({ provider }) => provider?.currency ?? "—"}
-              />
-              <Row
-                label="Matching services"
-                cells={results}
-                render={({ result }) =>
-                  result ? formatCount(result.services.length) : "None with your filters"
-                }
-              />
-              <Row
-                label="Price range"
-                cells={results}
-                render={({ result, provider }) => priceRange(result, provider?.currency ?? null)}
-              />
-              <Row
-                label="Cheapest match"
-                cells={results}
-                render={({ result, provider }) => {
-                  const cheapest = cheapestService(result);
-                  if (!cheapest || !provider?.currency || !cheapest.quote) return "—";
-                  return (
-                    <>
-                      <span className="font-medium">{cheapest.service.title}</span>
-                      <br />
-                      <span className="tabular-nums">
-                        {formatMoney(cheapest.quote.final, provider.currency)}
-                      </span>
-                      {cheapest.service.pricing.kind === "options" && (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          ({cheapest.quote.durationMinutes} min)
-                        </span>
-                      )}
-                    </>
-                  );
-                }}
-              />
-              <Row
-                label="Home tests"
-                cells={results}
-                render={({ result }) => {
-                  const n =
-                    result?.services.filter((s) => s.service.homeTest.available).length ?? 0;
-                  return n > 0 ? `${formatCount(n)} available` : "None";
-                }}
-              />
-              <Row
-                label="Offers"
-                cells={results}
-                render={({ result }) =>
-                  result
-                    ? [
-                        ...new Set(
-                          result.services.map((s) => SERVICE_TYPE_LABELS[s.service.type].plural),
-                        ),
-                      ].join(", ")
-                    : "—"
-                }
-              />
-            </tbody>
-          </table>
-        </div>
+        <CompareTable index={index} filters={filters} ids={ids} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Only mounted while the dialog is open, so it costs nothing otherwise. */
+function CompareTable({
+  index,
+  filters,
+  ids,
+}: {
+  index: ExplorerIndex;
+  filters: ExplorerFilters;
+  ids: number[];
+}) {
+  const results = useMemo(() => {
+    const view = computeView(index, { ...filters, providers: ids, page: 1 });
+    // All selected providers fit on one page (max 3 < page size).
+    const byId = new Map(view.providers.map((p) => [p.provider.id, p]));
+    return ids.map((id) => ({
+      id,
+      provider: index.catalog.providers.get(id),
+      result: byId.get(id),
+    }));
+  }, [index, filters, ids]);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[36rem] border-collapse text-sm">
+        <caption className="sr-only">Side-by-side comparison of selected providers</caption>
+        <thead>
+          <tr>
+            <td className="w-36" />
+            {results.map(({ id, provider }) => (
+              <th key={id} scope="col" className="p-3 text-left align-top">
+                {provider && (
+                  <div className="flex items-center gap-2">
+                    <ProviderAvatar id={id} name={provider.name} className="size-9" />
+                    <span className="font-heading font-semibold">{provider.name}</span>
+                  </div>
+                )}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="[&_td]:p-3 [&_td]:align-top [&_th]:p-3 [&_th]:text-left [&_th]:align-top [&_th]:font-medium [&_th]:text-muted-foreground [&_tr]:border-t">
+          <Row
+            label="Rating"
+            cells={results}
+            render={({ provider }) => provider && <ProviderRating provider={provider} />}
+          />
+          <Row
+            label="Location"
+            cells={results}
+            render={({ provider }) =>
+              provider?.city && provider.country
+                ? `${provider.city.name}, ${provider.country.name}`
+                : "Not listed"
+            }
+          />
+          <Row
+            label="Prices in"
+            cells={results}
+            render={({ provider }) => provider?.currency ?? "—"}
+          />
+          <Row
+            label="Matching services"
+            cells={results}
+            render={({ result }) =>
+              result ? formatCount(result.services.length) : "None with your filters"
+            }
+          />
+          <Row
+            label="Price range"
+            cells={results}
+            render={({ result, provider }) => priceRange(result, provider?.currency ?? null)}
+          />
+          <Row
+            label="Cheapest match"
+            cells={results}
+            render={({ result, provider }) => {
+              const cheapest = cheapestService(result);
+              if (!cheapest || !provider?.currency || !cheapest.quote) return "—";
+              return (
+                <>
+                  <span className="font-medium">{cheapest.service.title}</span>
+                  <br />
+                  <span className="tabular-nums">
+                    {formatMoney(cheapest.quote.final, provider.currency)}
+                  </span>
+                  {cheapest.service.pricing.kind === "options" && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      ({cheapest.quote.durationMinutes} min)
+                    </span>
+                  )}
+                </>
+              );
+            }}
+          />
+          <Row
+            label="Home tests"
+            cells={results}
+            render={({ result }) => {
+              const n = result?.services.filter((s) => s.service.homeTest.available).length ?? 0;
+              return n > 0 ? `${formatCount(n)} available` : "None";
+            }}
+          />
+          <Row
+            label="Offers"
+            cells={results}
+            render={({ result }) =>
+              result
+                ? [
+                    ...new Set(
+                      result.services.map((s) => SERVICE_TYPE_LABELS[s.service.type].plural),
+                    ),
+                  ].join(", ")
+                : "—"
+            }
+          />
+        </tbody>
+      </table>
+    </div>
   );
 }
 

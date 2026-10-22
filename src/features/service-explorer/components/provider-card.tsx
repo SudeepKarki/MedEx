@@ -3,8 +3,7 @@
 import { ChevronDownIcon, MapPinIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { NativeCheckbox } from "@/components/form/native-checkbox";
 import { formatCount } from "@/lib/money";
 import type { ProviderResult } from "../domain/engine";
 import { pluralize } from "../domain/labels";
@@ -24,7 +23,10 @@ interface ProviderCardProps {
 
 export function ProviderCard({ result, catalog, rangeActive }: ProviderCardProps) {
   const { provider, services } = result;
-  const [expanded, setExpanded] = useState(false);
+  // Remember *which* provider was expanded: the card is reused for other
+  // providers when results change (see ResultsList).
+  const [expandedFor, setExpandedFor] = useState<number | null>(null);
+  const expanded = expandedFor === provider.id;
   const listId = useId();
   const headingId = useId();
   const firstExtraRef = useRef<HTMLLIElement>(null);
@@ -33,7 +35,7 @@ export function ProviderCard({ result, catalog, rangeActive }: ProviderCardProps
 
   const toggle = () => {
     const next = !expanded;
-    setExpanded(next);
+    setExpandedFor(next ? provider.id : null);
     // Move focus to the first newly revealed service so keyboard and screen
     // reader users land on what they asked to see.
     if (next) requestAnimationFrame(() => firstExtraRef.current?.focus());
@@ -118,16 +120,16 @@ function CompareToggle({ providerId, providerName }: { providerId: number; provi
   const disabled = !selected && full;
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <Checkbox
+      <NativeCheckbox
         id={id}
         checked={selected}
         disabled={disabled}
-        onCheckedChange={() => toggle(providerId)}
+        onChange={() => toggle(providerId)}
         aria-describedby={disabled ? `${id}-full` : undefined}
       />
-      <Label htmlFor={id} className="text-sm font-normal">
+      <label htmlFor={id} className="cursor-pointer text-sm">
         Compare<span className="sr-only"> {providerName}</span>
-      </Label>
+      </label>
       {disabled && (
         <span id={`${id}-full`} className="sr-only">
           You can compare up to {MAX_COMPARE} providers. Remove one first.

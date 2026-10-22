@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { NativeCheckbox } from "@/components/form/native-checkbox";
 import { formatCount } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,13 @@ export function FacetOption({ label, count, checked, onToggle, className }: Face
         className,
       )}
     >
-      <Checkbox id={id} checked={checked} disabled={disabled} onCheckedChange={onToggle} />
+      <NativeCheckbox
+        id={id}
+        checked={checked === true}
+        indeterminate={checked === "indeterminate"}
+        disabled={disabled}
+        onChange={onToggle}
+      />
       <label
         htmlFor={id}
         className={cn(
