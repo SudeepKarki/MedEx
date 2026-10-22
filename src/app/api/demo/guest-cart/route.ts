@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getDb } from "@/server/cart/store";
 
 /**
@@ -5,5 +6,6 @@ import { getDb } from "@/server/cart/store";
  * "what this device added before signing in" on first visit.
  */
 export async function GET() {
+  await connection();
   return Response.json({ items: (await getDb()).guestCart });
 }
