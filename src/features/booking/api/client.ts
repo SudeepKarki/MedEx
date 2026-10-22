@@ -42,21 +42,33 @@ export async function fetchProviders(signal?: AbortSignal): Promise<ProviderData
 
 const statusSchema = z.object({ kind: z.string() }).passthrough();
 
+export interface Availability {
+  days: { date: PlainDate; status: DayStatus }[];
+  /** specialistId → first date with a bookable start (null: none in the window). */
+  nextAvailable: Record<string, PlainDate | null>;
+}
+
 export async function fetchAvailability(
   providerId: number,
   options: { specialistId: string | null; people: number; exceptBooking?: string },
   signal?: AbortSignal,
-): Promise<{ date: PlainDate; status: DayStatus }[]> {
+): Promise<Availability> {
   const params = new URLSearchParams({ people: String(options.people) });
   if (options.specialistId) params.set("specialistId", options.specialistId);
   if (options.exceptBooking) params.set("exceptBooking", options.exceptBooking);
   const body = track(
     parse(
-      withNow({ days: z.array(z.object({ date: z.string(), status: statusSchema })) }),
+      withNow({
+        days: z.array(z.object({ date: z.string(), status: statusSchema })),
+        specialists: z.array(z.object({ specialistId: z.string(), nextAvailable: z.string().nullable() })),
+      }),
       await apiRequest({ endpoint: E.availability.id, path: `/api/providers/${providerId}/availability?${params}`, signal }),
     ),
   );
-  return body.days as { date: PlainDate; status: DayStatus }[];
+  return {
+    days: body.days as Availability["days"],
+    nextAvailable: Object.fromEntries(body.specialists.map((s) => [s.specialistId, s.nextAvailable])),
+  };
 }
 
 export interface ApiSlot {

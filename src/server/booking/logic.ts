@@ -72,6 +72,22 @@ export function availabilityFor(
   });
 }
 
+/** Each specialist's first date with a bookable start for the group, or null within the window. */
+export function nextAvailableBySpecialist(
+  db: BookingDb,
+  provider: Provider,
+  people: number,
+  now: number,
+  exceptBooking?: string,
+): { specialistId: string; nextAvailable: PlainDate | null }[] {
+  return provider.specialists.map((s) => ({
+    specialistId: s.id,
+    nextAvailable:
+      availabilityFor(db, provider, s.id, people, now, exceptBooking).find((d) => d.status.kind === "available")?.date ??
+      null,
+  }));
+}
+
 interface SlotRequest {
   provider: Provider;
   specialistId: string;
