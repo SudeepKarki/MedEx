@@ -4,7 +4,7 @@
 
 A date and time picker for booking an appointment with a provider in another time zone. It covers choosing a specialist, booking for up to four people, and rescheduling an existing booking.
 
-**The answer to the customer's question, everywhere on the page:** every time is the provider's ("10:40 AM Bangkok time"), because that's the clock the customer has to be there by. Their own time is shown under it, labelled "your time", with "next day" when it falls on a different date for them.
+**The answer to the customer's question, everywhere on the page:** every time is the provider's ("10:40 AM Thailand time"), because that's the clock the customer has to be there by. Their own time is shown under it, labelled "your time", with "next day" when it falls on a different date for them.
 
 This branch (`task-3-booking-time-zones`) builds on the shared foundation on `main`. Tasks 1 and 2 live on their own branches.
 
@@ -22,8 +22,8 @@ You need Node 20.9+ and pnpm 10.
 | --- | --- |
 | `pnpm dev` | Dev server |
 | `pnpm build && pnpm start` | Production build |
-| `pnpm test` | 65 booking unit tests (Vitest): time zones, slot rule, availability, two clocks, group runs, the mock server's booking logic |
-| `pnpm e2e` | 16 Playwright flows against a production build (the scenarios below, desktop and phone) |
+| `pnpm test` | 74 booking unit tests (Vitest): time zones, slot rule, availability, two clocks, group runs, confirm outcomes, the mock server's booking logic |
+| `pnpm e2e` | 15 booking flows in Playwright (14 desktop, 1 phone) against a production build, plus the shell smoke test |
 | `pnpm check` | Typecheck, lint and unit tests |
 
 Playwright needs a Chromium. Run `pnpm exec playwright install chromium`, or point `PLAYWRIGHT_CHROMIUM_PATH` at one you already have. The e2e tests pin the browser's zone to `Asia/Kathmandu` (the brief's customer), and one test to `Asia/Bangkok`.
@@ -34,7 +34,7 @@ The failures are driven from the **Mock API** button in the header. Its **Demo d
 
 | Scenario | How |
 | --- | --- |
-| The brief's story | Open `/book/48` (Riverside, Bangkok). Your device's zone is detected; press **Change** on "Your time" to pretend you're in Kathmandu. |
+| The brief's story | Open `/book/48` (Riverside, in Thailand). Your device's zone is detected; press **Change** on "Your time" to pretend you're in Kathmandu. |
 | Someone else got there first (409) | `POST /api/bookings` → **Fail once** + **HTTP 409**, then book any time. The slot really is taken on the server, so the grid shows it booked. |
 | The reply never arrives | `POST /api/bookings` → **Fail once** + **Booking made, reply lost**. The server books it, then holds the reply past the browser's 12 s timeout. |
 | Server error / dropped connection | `POST /api/bookings` → **HTTP 500** or **Network error** |
@@ -42,7 +42,7 @@ The failures are driven from the **Mock API** button in the header. Its **Demo d
 | Slow network | Network speed **Slow 3G** or **Very slow** |
 | Offline | **Simulate offline** |
 | Reschedule | `/bookings/BK-20261008-0042/reschedule` (also linked from `/book`) |
-| Late evening, after midnight for you | `/book/131` (India) or `/book/121` (Nepal) with your zone set to Bangkok |
+| Late evening, after midnight for you | `/book/131` (India) with your zone set to Bangkok, or `/book/121` (Nepal) with it set to Tokyo |
 | A group | Choose 2–4 people on any provider |
 
 ---
@@ -79,29 +79,30 @@ The failures are driven from the **Mock API** button in the header. Its **Demo d
 | --- | --- | --- | --- |
 | Riverside International Hospital (TH) | `"Asia/Bangkok"` | Asia/Bangkok | nothing extra |
 | Lumbini Polyclinic (NP) | `"Asia/Katmandu "` | Asia/Kathmandu (old spelling, trailing space) | nothing extra: it's a valid name |
-| Himal Neo Clinic (NP) | `" UTC+05:45"` | Asia/Kathmandu (offset matches NP) | "Their time zone is listed as “UTC+05:45”, which we read as Kathmandu time (UTC+5:45)." |
+| Himal Neo Clinic (NP) | `" UTC+05:45"` | Asia/Kathmandu (offset matches NP) | "Their time zone is listed as “UTC+05:45”, which we read as Nepal time (UTC+5:45)." |
 | Pashupati Medical Centre (NP) | `"(GMT+5:45)"` | Asia/Kathmandu (offset matches NP) | the same kind of note |
 | Annapurna Diagnostics (NP) | `"Nepal Standard Time"` | Asia/Kathmandu (Windows name) | the same kind of note |
-| Aravali Hospital (IN) | `""` | Asia/Kolkata (country fallback) | "They haven't listed a time zone, so we're using Kolkata time (UTC+5:30), from their country." |
+| Aravali Hospital (IN) | `""` | Asia/Kolkata (country fallback) | "They haven't listed a time zone, so we're using India time (UTC+5:30), from their country." |
 
 The note is shown wherever we *interpreted* the value, so a customer (or support) can spot it if we read it wrong.
 
 Two details:
 
-- **ICU reports `Asia/Kathmandu` as `Asia/Katmandu`**, its canonical name. Labels map it back to the modern spelling.
+- **ICU reports `Asia/Kathmandu` as `Asia/Katmandu`**, its canonical name. Comparisons map it back to the modern spelling.
+- **A zone's city isn't the provider's location.** Lumbini Polyclinic is on "Asia/Kathmandu" but isn't in Kathmandu, and the data only has a country. So a provider's clock is named by its country ("Nepal time", "Thailand time", "India time") whenever it's that country's zone, and by the zone's own name otherwise. The customer's clock keeps its city ("your Kathmandu time"): that comes from their own device.
 - **Offsets aren't timeless.** Nepal was UTC+5:30 until 1986. So offsets are always computed for a real moment (the slot's own date), never for "epoch 0".
 
 ## Two clocks
 
 - **The provider's clock comes first, labelled with its place.**
-  - At the top: two live clocks, "Appointment time · Bangkok" and "Your time · Kathmandu".
-  - Under them, in bold: **All times are Bangkok time**, where Riverside International Hospital is. Bangkok is 1 h 15 min ahead of you; your Kathmandu time is shown under each one.
-- **Every time chip has both.** "10:40 AM", then a person icon and "9:25 AM". A screen reader hears "10:40 AM Bangkok time, 9:25 AM your time in Kathmandu".
+  - At the top: two live clocks, "Appointment time · Thailand" and "Your time · Kathmandu".
+  - Under them, in bold: **All times are Thailand time**, the time at Riverside International Hospital. Thailand is 1 h 15 min ahead of you; your Kathmandu time is shown under each one.
+- **Every bookable time chip has both.** "10:40 AM", then a person icon and "9:25 AM". A screen reader hears "10:40 AM Thailand time, 9:25 AM your time in Kathmandu" (booked and started chips say "Booked" or "Started" visually; their spoken name still has both times).
 - **The day can differ.** For a customer in Bangkok, Aravali's 11:00 PM (India) is "12:30 AM · next day". Summaries spell it out: "12:30 AM, Sat 21 Nov your time".
-- **One clock when one is enough.** If the customer's clock reads the same as the provider's (a Kathmandu customer at Lumbini), the second clock is hidden and the page says so: "Kathmandu is on the same time as you".
-- **The customer's zone is changeable.** It's detected from the device. Someone planning from abroad can pick another from the list (all IANA zones), and the choice is remembered.
+- **One clock when one is enough.** If the customer's clock reads the same as the provider's (a Kathmandu customer at Lumbini), the second clock is hidden and the page says so: "Nepal time is the same as yours".
+- **The customer's zone is changeable.** It's detected from the device. Someone planning from abroad can pick another from the list (all IANA zones); it applies as they move through the list, **Done** closes it and returns focus to **Change**, and the choice is remembered.
 - **Daylight saving is handled per slot.** The customer's time is computed for each slot's own date, so a London customer sees the right time on both sides of 25 October.
-- **The confirmation page** repeats it: "Please arrive by Bangkok time. Your phone may show a different time if it's still set to Kathmandu."
+- **The confirmation page** repeats it: "Please arrive by Thailand time. Your phone may show a different time if it's still set to Kathmandu."
 
 ## Today and the edges of the day
 
@@ -109,12 +110,13 @@ Two details:
 - **"Today" is the provider's today.**
   - `dayOffset` 0 is converted to a date when the mock server starts, separately for each provider, from that provider's today. At 11:00 PM in Kathmandu it's already tomorrow in Bangkok, so their "today" can differ.
   - The calendar starts on the provider's today, and the 90-day window is that day plus 89 (today counts as day 1).
+  - The provider's today is part of the calendar's cache key, so a page left open past the provider's midnight moves the window on by itself.
 - **"Now" comes from the server, not the device.**
   - Every response carries the server's time (`now`). The client keeps its offset from the device clock, so a wrong device clock doesn't matter.
   - A slot that has *started* by the provider's clock is unavailable ("Started"). This is re-evaluated each minute while the page is open, so a slot can't be booked after it starts just because the page was loaded earlier.
   - The server checks it again when booking (409 `SLOT_UNAVAILABLE`).
-- **Late-evening slots** (Aravali 9:00–11:30 PM IST, Lumbini 8:00–10:30 PM NPT) are "evening" on the provider's clock and say "next day" for customers to the east.
-- **When today is over,** the day says "No times left today", with the provider's current time ("It's already 10:19 PM in Bangkok…"), and offers the next free day.
+- **Late-evening slots** (Aravali 9:00–11:30 PM IST, Lumbini 8:00–10:30 PM NPT) are "evening" on the provider's clock and say "next day" for customers far enough east: Aravali's from Bangkok, Lumbini's from Tokyo.
+- **When today is over,** the day says "No times left today", with the provider's current time ("It's already 10:19 PM there (Thailand time), and the rest of today's times have started or are booked."), and offers the next free day.
 
 ## The slot rule
 
@@ -144,27 +146,30 @@ Two details:
   - **taken** (409): someone else got it. Nothing was booked.
   - **failed** (500, or offline before sending): nothing was booked; try again.
   - **unknown** (dropped connection, timeout, unreadable reply): it *may* have been booked.
+  - Once an attempt has been unknown, **only the server's decision settles it** (a booking, a 409 or another 4xx). A 500 or being offline while checking proves nothing about the first send, so it stays unknown and locked. Treating that 500 as "nothing was booked" would have let the customer book a second time.
 - **An unknown result locks everything.**
   - "We don't know yet if it went through". The choices are disabled ("so you can't book twice by accident") and the confirm button is disabled.
   - **Check now** re-sends *the same request with the same key*. The server returns the booking it already made, or makes it now. It never makes a second one, and never answers a 409 against itself.
   - It's re-checked automatically when the connection comes back.
-  - The attempt is kept in sessionStorage, so a reload mid-request still knows it's unresolved and restores the choices that were sent.
+  - The attempt is kept in sessionStorage, so a reload mid-request still knows it's unresolved and restores the choices that were sent. Its own time isn't called "booked by someone else" meanwhile: it may well be theirs.
 - **409 keeps everything.**
   - The specialist, group size and date stay chosen. The taken time is struck through in the summary: "10:40 AM was just taken. Nothing was booked, and everything else you chose is kept."
   - Focus moves to that message.
   - The slots are refetched, and the **closest free times** (same specialist; any specialist if they chose "Any") are offered as buttons. Picking one moves focus straight to the confirm button. If that day has nothing left, it offers the next free day.
 - **Offline:** choosing still works from what's loaded, but the confirm button is disabled: "You're offline. Reconnect to confirm; your choices are kept."
+- **Never against a guess.** A time can only be confirmed once that day's slots have loaded, so a time carried in the URL is always checked first. If they fail to load: "We couldn't load this day's times, so we can't check this one is still free."
+- **A 409 for a time that's gone rather than taken** (it started while they were deciding) says "10:40 AM can't be booked any more" instead of blaming someone else.
 - **Rescheduling** (`PUT /bookings/:id`) is idempotent by nature: moving to where it already is returns 200. So the same "unknown → check again" path is safe.
 
 ## States
 
-- **Loading:** skeletons shaped like the page, the calendar and the slot grid. After 2.5 s they add "Still loading. The connection seems slow…".
+- **Loading:** skeletons shaped like the page, the calendar and the slot grid. After 2.5 s they add "Still loading. The connection seems slow…"; offline, they say straight away "You're offline. This will load as soon as you're back online."
 - **Updating:** changing the specialist or group size keeps the old calendar on screen, faded, with "Updating…", instead of flashing skeletons.
 - **A day with nothing to book:** one sentence on why, then a way forward:
   - closed on Sundays, a closure ("Reason given: Public holiday."), fully booked, today over, or no run long enough for the group;
   - each offers **Next free day: …**.
 - **A specialist with nothing in 90 days:** their card says "No free times in the next 90 days" *before* it's chosen. Choosing them anyway offers the other specialists with their next free day.
-  - None of the fixture's specialists is in this state, but a group of 4 can push one into it.
+  - None of the fixture's specialists is in this state, even for a group of 4, so this path is covered by reading the code rather than by a demo.
 - **Partial failure:** the calendar and the times load separately. If one fails, it shows its own error and **Try again**; everything else, and every choice made, stays.
 - **Slow confirm:** "Booking…", and after 3 s "Still waiting for Riverside International Hospital's booking system… please keep this page open."
 - **Offline:** the site banner, plus the confirm button's reason.
@@ -178,10 +183,10 @@ Two details:
 - **Slots: a single-select listbox per specialist, with period groups.**
   - One tab stop per specialist. ←/→ step through the times; ↑/↓ move to the row above or below as laid out on screen, at any width; Home/End; Enter or Space chooses. Selection doesn't follow focus, so arrowing through times doesn't change the booking.
   - Booked and started times stay focusable (`aria-disabled`) and are announced as such.
-  - Choosing a time is announced: "Chosen: 10:40 AM Bangkok time, 9:25 AM your time, with Dr. A. Wongsakul."
+  - Choosing a time is announced: "Chosen: 10:40 AM Thailand time, 9:25 AM your time, with Dr. A. Wongsakul." When the customer's date differs, it's included ("12:30 AM, Sat 24 Oct your time").
 - **Pickers:** specialists and group size are native radio groups with legends.
 - **Focus:** after a 409 or an unknown result, focus moves to the message. After choosing an alternative, focus moves to the confirm button.
-- **Phones:** once a time is chosen, a sticky bar shows it (both clocks) with **Review**, hidden while the summary is on screen. Touch targets are at least 44 px.
+- **Phones:** once a time is chosen, a sticky bar shows it (both clocks) with **Review**, hidden while the summary is on screen. Touch targets are at least 44 px on touch screens, small buttons included.
 - Contrast is AA in both themes. Reduced motion is respected.
 
 ## Architecture
@@ -242,7 +247,7 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
 | **`existingBooking` can land on a day the provider is closed.** It's `dayOffset: 3` from Riverside's today, so whenever today is a Thursday it falls on a Sunday. | The booking still stands. The reschedule page says "Your current appointment is on Sunday, 25 October 2026, but Riverside International Hospital's listed hours say it's closed that day. Your booking still stands; you may want to move it or check with them." |
 | **Dr. N. Rana (6–9 PM) works past closing**: 8 PM Mon–Thu, 5 PM Fri, 1 PM Sat | 6:00–7:40 PM bookable Mon–Thu; nothing Fri/Sat; explained on each day |
 | **Dr. P. Chaiyaporn (7 AM–12 PM) starts before opening** (8 AM; 9 AM Sat) | The 7:00 slot (and 8:00 on Saturdays) isn't offered; explained |
-| **Late-evening hours** cross midnight for customers east of the provider | "next day" on the second clock |
+| **Late-evening hours** cross midnight for customers far enough east of the provider | "next day" on the second clock |
 | `dayOffset`s count from each **provider's** today, which differs between providers near midnight | Converted per provider at server start |
 | The booked slots are all on their specialist's grid, with no duplicates (checked) | — |
 
@@ -265,12 +270,12 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
 
 ## Tests
 
-- **Unit (65 booking tests, plus 7 shared money tests):**
-  - `timezone.test.ts` (18):
+- **Unit (74 booking tests, plus 7 shared money tests):**
+  - `timezone.test.ts` (21):
     - every stored value in the file;
     - offsets in every spelling, matched to the country or kept fixed;
-    - ICU's `Asia/Katmandu`;
-    - conversions both ways, including DST;
+    - ICU's `Asia/Katmandu`, and naming a provider's clock by its country;
+    - conversions both ways, including DST gaps and overlaps;
     - "today" at the provider when the customer's date differs.
   - `slots.test.ts` (11):
     - the brief's example grid;
@@ -287,10 +292,23 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
     - off-grid and out-of-window times;
     - idempotent replay and key reuse;
     - moving, including onto an overlapping run.
-  - `alternatives.test.ts`, `confirm.test.ts`, `selection.test.ts`.
-- **E2E (16):** [`e2e/booking.spec.ts`](e2e/booking.spec.ts) and the phone flow cover every scenario in the table at the top, against a production build. Two bugs were found this way and fixed:
+  - `confirm.test.ts` (4): taken, failed and unknown, and a re-check that stays unknown until the server decides.
+  - `day-view.test.ts` (5): what's wrong with the chosen time, and no alternatives until the slots are fresh.
+  - `alternatives.test.ts`, `selection.test.ts`.
+- **E2E (15 booking flows):** [`e2e/booking.spec.ts`](e2e/booking.spec.ts) (14) and the phone flow cover every scenario in the table at the top, against a production build. Two bugs were found this way and fixed:
   - a date past the 90-day window was bookable on the server;
   - a calendar day focused by a screen reader's cursor didn't become the active day.
+
+### Found in code review
+
+An independent review pass (a second agent given the code and the brief, not my notes) found these, all fixed and most now covered by tests:
+
+- **A 500 while checking an unanswered booking unlocked the page,** so a customer whose first booking had gone through could book a second time. A re-check now stays unknown until the server decides (unit + e2e test).
+- **The confirm button was enabled when a day's times had failed to load,** for a time carried in the URL (e2e test).
+- **The zone's city was presented as the provider's location** ("Lumbini Polyclinic · Kathmandu"). Provider clocks are now named by country (e2e test).
+- **The time-zone list committed and closed on the first arrow key,** dropping focus (e2e test).
+- After a reload, an unanswered booking's own slot was called "booked by someone else", and a 409 from **Check now** offered no alternatives.
+- The "Chosen" announcement dropped "next day"; the calendar's today went stale at the provider's midnight; offline loading said "slow"; some wording overstated what happened; small buttons were under 44 px on touch; a DST comment was wrong.
 
 ## AI tools
 
