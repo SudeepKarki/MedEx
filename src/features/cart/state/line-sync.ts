@@ -2,8 +2,8 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import { announce } from "@/components/app/live-announcer";
-import { deleteLine, patchDuration, patchQuantity } from "../api/client";
-import { describeCartError, errorBody } from "../domain/errors";
+import { deleteLine, fetchCart, patchDuration, patchQuantity } from "../api/client";
+import { describeCartError, errorBody, isDefinitive } from "../domain/errors";
 import type { Cart } from "../domain/types";
 import { useCartEdits } from "./cart-edits";
 
@@ -56,12 +56,52 @@ export function syncLine(queryClient: QueryClient, lineId: string): Promise<void
   if (existing) return existing; // the running loop will pick up the newest edit
 
   const store = useCartEdits.getState;
+  const serverLine = () =>
+    queryClient.getQueryData<Cart>(CART_KEY)?.lines.find((l) => l.id === lineId);
+
+  /**
+   * Undo the one field that failed, explain, and let the loop carry on with
+   * whatever else is still pending (a removal queued behind a failed
+   * quantity change must still be sent).
+   */
+  const failed = (
+    field: "quantity" | "wellnessPricingId" | "removing",
+    error: unknown,
+    what: string,
+  ) => {
+    if (errorBody(error)?.code === "LINE_NOT_FOUND") {
+      // Gone on the server (ordered or removed elsewhere): stop showing it.
+      queryClient.setQueryData<Cart>(CART_KEY, (c) =>
+        c ? { ...c, lines: c.lines.filter((l) => l.id !== lineId) } : c,
+      );
+      store().clearEdit(lineId);
+      void queryClient.invalidateQueries({ queryKey: CART_KEY });
+      announce("That item is no longer in your cart.", "assertive");
+      return;
+    }
+    let message: string;
+    if (isDefinitive(error)) {
+      const saved = serverLine();
+      message =
+        field === "quantity" && saved
+          ? `${describeCartError(error, what)} Quantity is back to ${saved.quantity}.`
+          : describeCartError(error, what);
+    } else {
+      // The request may have gone through: ask the server instead of guessing.
+      message = `${describeCartError(error, what)} Showing what's saved.`;
+      void queryClient.invalidateQueries({ queryKey: CART_KEY });
+    }
+    if (field === "removing") message = `${message} It's still in your cart.`;
+    store().fail(lineId, field, message);
+    announce(message, "assertive");
+  };
+
   const loop = (async () => {
     store().setSaving(lineId, true);
     try {
       for (;;) {
         const edit = store().edits[lineId];
-        const server = queryClient.getQueryData<Cart>(CART_KEY)?.lines.find((l) => l.id === lineId);
+        const server = serverLine();
         if (!edit) break;
         if (!server) {
           store().clearEdit(lineId); // gone already (removed elsewhere, or ordered)
@@ -76,15 +116,11 @@ export function syncLine(queryClient: QueryClient, lineId: string): Promise<void
             );
             store().clearEdit(lineId);
             void queryClient.invalidateQueries({ queryKey: CART_KEY });
+            break;
           } catch (error) {
-            const message = describeCartError(error, "We couldn't remove this item.");
-            store().fail(lineId, "removing", `${message} It's still in your cart.`);
-            announce(
-              `Couldn't remove ${server.product?.title ?? "the item"}. ${message}`,
-              "assertive",
-            );
+            failed("removing", error, "We couldn't remove this item.");
+            continue;
           }
-          break;
         }
 
         if (
@@ -96,10 +132,7 @@ export function syncLine(queryClient: QueryClient, lineId: string): Promise<void
             applyServerCart(queryClient, await patchDuration(lineId, sent));
             store().settle(lineId, "wellnessPricingId", sent);
           } catch (error) {
-            const message = describeCartError(error, "We couldn't save the duration.");
-            store().fail(lineId, "wellnessPricingId", message);
-            announce(message, "assertive");
-            break;
+            failed("wellnessPricingId", error, "We couldn't save the duration.");
           }
           continue;
         }
@@ -119,15 +152,9 @@ export function syncLine(queryClient: QueryClient, lineId: string): Promise<void
               store().setEdit(lineId, { quantity: max });
               useCartEdits.setState((s) => ({ errors: { ...s.errors, [lineId]: message } }));
               announce(message, "assertive");
-              continue;
+            } else {
+              failed("quantity", error, "We couldn't save the new quantity.");
             }
-            const confirmed =
-              queryClient.getQueryData<Cart>(CART_KEY)?.lines.find((l) => l.id === lineId)
-                ?.quantity ?? server.quantity;
-            const message = `${describeCartError(error, "We couldn't save the new quantity.")} Quantity is back to ${confirmed}.`;
-            store().fail(lineId, "quantity", message);
-            announce(message, "assertive");
-            break;
           }
           continue;
         }
@@ -143,3 +170,19 @@ export function syncLine(queryClient: QueryClient, lineId: string): Promise<void
   running.set(lineId, loop);
   return loop;
 }
+
+/**
+ * Query options for the cart. Refetches go through the same "newer revision
+ * wins" rule as PATCH responses, so a slow GET that was answered before a
+ * PATCH can't overwrite the newer cart when it arrives after it.
+ */
+export const cartQueryOptions = {
+  queryKey: CART_KEY,
+  queryFn: ({ signal }: { signal: AbortSignal }) => fetchCart(signal),
+  staleTime: 30_000,
+  structuralSharing: (previous: unknown, next: unknown) => {
+    const prev = previous as Cart | undefined;
+    const incoming = next as Cart;
+    return prev && incoming.revision < prev.revision ? prev : incoming;
+  },
+};

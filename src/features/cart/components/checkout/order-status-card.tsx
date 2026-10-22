@@ -78,7 +78,11 @@ export function OrderStatusCard({
   const dispatch = useCheckoutSession((s) => s.dispatch);
   const { state } = group;
   const copy = statusCopy(state);
-  const totals = totalsOf(group.totals);
+  // What the server says it charged/booked, once it has answered; until then what the customer saw
+  const totals =
+    (state.status === "confirmed" || state.status === "awaiting_payment") && state.totals
+      ? new Map(Object.entries(state.totals).map(([c, n]) => [c, decimal(n)]))
+      : totalsOf(group.totals);
 
   return (
     <article
@@ -141,7 +145,11 @@ export function OrderStatusCard({
 
       {state.status === "declined" && (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => dispatch(group.groupType, { type: "retry" })}>
+          <Button
+            onClick={() =>
+              dispatch(group.groupType, { type: "retry", newKey: crypto.randomUUID() })
+            }
+          >
             <RefreshCwIcon aria-hidden />
             Try again{group.paymentMethod === "card" ? " by card" : ""}
           </Button>
@@ -152,6 +160,7 @@ export function OrderStatusCard({
                 dispatch(group.groupType, {
                   type: "change_payment",
                   paymentMethod: "pay_at_clinic",
+                  newKey: crypto.randomUUID(),
                 })
               }
             >
@@ -160,11 +169,11 @@ export function OrderStatusCard({
           )}
         </div>
       )}
-      {state.status === "unknown" && state.attempt > 1 && (
+      {state.status === "unknown" && (
         <div>
           <Button onClick={() => dispatch(group.groupType, { type: "retry" })}>
             <RefreshCwIcon aria-hidden />
-            Check again
+            Check now
           </Button>
         </div>
       )}
@@ -238,9 +247,9 @@ function StatusMessage({ group, totals }: { group: SessionGroup; totals: ReactNo
     case "unknown":
       return (
         <p>
-          We lost touch with our server before it confirmed this order.{" "}
-          {state.attempt === 1 ? "Checking again in a moment… " : ""}When we check, we ask about
-          this exact order, so <strong>you won&apos;t be charged twice</strong>.
+          We lost touch with our server before it confirmed this order, so it may or may not have
+          gone through. We&apos;re checking again automatically. Each time, we ask about this exact
+          order, so <strong>you won&apos;t be charged twice</strong>.
         </p>
       );
   }

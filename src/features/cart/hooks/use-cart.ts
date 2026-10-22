@@ -3,22 +3,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-import { fetchCart } from "../api/client";
 import { buildGroups } from "../domain/view";
 import { useCartEdits } from "../state/cart-edits";
 import { useCartSession } from "../state/cart-session";
-import { lockedGroupTypes, useCheckoutSession } from "../state/checkout-session";
-import { CART_KEY } from "../state/line-sync";
+import {
+  hasPendingCheckout,
+  lockedGroupTypes,
+  useCheckoutSession,
+} from "../state/checkout-session";
+import { cartQueryOptions } from "../state/line-sync";
 
 /** The signed-in customer's cart as it should look right now (server state + pending edits). */
 export function useCart() {
   const signedIn = useCartSession((s) => s.signedIn);
-  const query = useQuery({
-    queryKey: CART_KEY,
-    queryFn: ({ signal }) => fetchCart(signal),
-    enabled: signedIn,
-    staleTime: 30_000,
-  });
+  const query = useQuery({ ...cartQueryOptions, enabled: signedIn });
   const edits = useCartEdits((s) => s.edits);
   const saving = useCartEdits((s) => s.saving);
   const errors = useCartEdits((s) => s.errors);
@@ -35,6 +33,7 @@ export function useCart() {
             errors,
             maxQuantities,
             checkingOut: lockedGroupTypes(session),
+            checkoutBusy: hasPendingCheckout(session),
             online,
           })
         : null,

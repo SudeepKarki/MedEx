@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeftIcon, CreditCardIcon, InfoIcon, StoreIcon } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -34,10 +34,10 @@ type FormValues = z.infer<typeof formSchema>;
  */
 export function ReviewStep() {
   const params = useSearchParams();
+  const router = useRouter();
   const { query, groups } = useCart();
   const start = useCheckoutSession((s) => s.start);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => headingRef.current?.focus(), []);
 
   const requestedParam = params.get("groups");
   const candidates = useMemo(() => {
@@ -67,8 +67,17 @@ export function ReviewStep() {
     });
   }, [readyKey, form]);
 
+  // Focus the step's heading once it exists (not while the skeleton shows)
+  const loaded = !query.isPending;
+  useEffect(() => {
+    if (loaded) headingRef.current?.focus();
+  }, [loaded]);
+
   const onSubmit = form.handleSubmit(({ methods }) => {
     start(ready.map((g) => draftFromGroup(g, methods[g.type] ?? "card")));
+    // Drop ?groups: from now on this URL means "the checkout in progress", and
+    // a reload or a finished checkout must not be mistaken for a new request.
+    router.replace("/cart/checkout");
   });
 
   if (query.isPending) return <CartSkeleton />;

@@ -16,6 +16,8 @@ export interface ViewContext {
   maxQuantities: Readonly<Record<string, number>>;
   /** Group types currently going through checkout (locked for editing). */
   checkingOut: ReadonlySet<string>;
+  /** Some checkout hasn't finished; others wait until it has. */
+  checkoutBusy?: boolean;
   online: boolean;
 }
 
@@ -64,10 +66,13 @@ export function buildGroups(cart: Cart, ctx: ViewContext): GroupView[] {
       for (const l of lines) {
         if (l.product && l.product.wellnessOptions.length && !l.chosenOption) {
           blockedBy.push({ kind: "needs-duration", lineId: l.id, title: l.product.title });
+        } else if (l.product && !l.product.wellnessOptions.length && l.unitPrice === null) {
+          blockedBy.push({ kind: "no-price", lineId: l.id, title: l.product.title });
         }
       }
       if (lines.some((l) => l.saving)) blockedBy.push({ kind: "saving" });
       if (ctx.checkingOut.has(type)) blockedBy.push({ kind: "in-checkout" });
+      else if (ctx.checkoutBusy) blockedBy.push({ kind: "other-checkout" });
       if (!ctx.online) blockedBy.push({ kind: "offline" });
       return {
         type,
@@ -104,6 +109,10 @@ export function blockMessage(reason: BlockReason): string {
       return "Saving your changes…";
     case "in-checkout":
       return "Checkout in progress";
+    case "other-checkout":
+      return "Finish your current checkout first";
+    case "no-price":
+      return `${reason.title} has no price yet, so it can't be ordered`;
     case "offline":
       return "You're offline";
   }

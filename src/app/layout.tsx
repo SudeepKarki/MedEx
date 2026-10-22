@@ -4,6 +4,7 @@ import { LiveAnnouncer } from "@/components/app/live-announcer";
 import { AppProviders } from "@/components/app/providers";
 import { SiteHeader } from "@/components/app/site-header";
 import { SkipLink } from "@/components/app/skip-link";
+import { CheckoutRunner } from "@/features/cart/components/checkout-runner";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -45,6 +46,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             {children}
           </main>
           <LiveAnnouncer />
+          {/* Keeps an in-progress checkout moving on every page */}
+          <CheckoutRunner />
         </AppProviders>
       </body>
     </html>

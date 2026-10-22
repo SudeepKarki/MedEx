@@ -1,27 +1,31 @@
 "use client";
 
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { announce } from "@/components/app/live-announcer";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { isApiError } from "@/lib/api/errors";
 import { fetchOrder, placeOrder } from "../api/client";
+import type { GroupEvent } from "../domain/checkout-machine";
 import { errorBody } from "../domain/errors";
+import {
+  syncCheckoutAcrossTabs,
+  useCheckoutSession,
+  type SessionGroup,
+} from "../state/checkout-session";
 import { CART_KEY } from "../state/line-sync";
-import { useCheckoutSession, type SessionGroup } from "../state/checkout-session";
 
 const POLL_MS = 1500;
-const AUTO_RETRY_MS = 2000;
+/** Unknown outcomes are re-asked (same key) at 2 s, 4 s, 8 s… capped here. */
+const MAX_RECHECK_MS = 30_000;
+const LOCK_NAME = "medex:checkout-runner";
 
 /** Requests and timers this tab owns. Module-level: one runner per tab. */
 const inFlight = new Set<string>();
 const pollers = new Map<string, number>();
-const autoRetries = new Set<string>();
+const rechecks = new Map<string, number>();
 
-function dispatch(
-  groupType: string,
-  event: Parameters<ReturnType<typeof useCheckoutSession.getState>["dispatch"]>[1],
-) {
+function dispatch(groupType: string, event: GroupEvent) {
   useCheckoutSession.getState().dispatch(groupType, event);
 }
 
@@ -30,24 +34,56 @@ function current(groupType: string): SessionGroup | undefined {
 }
 
 /**
+ * Only one tab drives the checkout (Web Locks); the others follow its writes
+ * through the `storage` event. If the driving tab closes, the lock passes to
+ * another open tab. Browsers without Web Locks just run it in every tab,
+ * which is still safe because all tabs use the same idempotency keys.
+ */
+function useIsCheckoutLeader(): boolean {
+  // Without Web Locks every tab leads (safe: shared idempotency keys). Not rendered, so no hydration concern.
+  const [leader, setLeader] = useState(
+    () => typeof navigator !== "undefined" && !("locks" in navigator),
+  );
+  useEffect(() => {
+    if (!("locks" in navigator)) return;
+    const abort = new AbortController();
+    let release: () => void = () => {};
+    navigator.locks
+      .request(LOCK_NAME, { signal: abort.signal }, () => {
+        setLeader(true);
+        return new Promise<void>((resolve) => (release = resolve));
+      })
+      .catch(() => {}); // aborted on unmount
+    return () => {
+      abort.abort();
+      release();
+    };
+  }, []);
+  return leader;
+}
+
+/**
  * Drives the checkout state machine: submits orders one at a time, polls
- * card payments, resumes after a reload, and retries an unknown outcome once
- * automatically (with the same idempotency key). Mounted once for all /cart
- * pages, so polling continues if the customer goes back to the cart.
+ * card payments, resumes after a reload, and keeps re-asking about an
+ * unknown outcome (with the same key) until it settles. Mounted once for the
+ * whole app, so it keeps going wherever the customer navigates.
  */
 export function useCheckoutRunner() {
   const queryClient = useQueryClient();
   const session = useCheckoutSession((s) => s.session);
   const online = useOnlineStatus();
+  const leader = useIsCheckoutLeader();
+
+  useEffect(() => syncCheckoutAcrossTabs(), []);
 
   useEffect(() => {
-    if (!session || !online) return;
+    if (!session || !online || !leader) return;
 
     for (const group of session.groups) {
       if (group.state.status === "awaiting_payment") {
         poll(queryClient, group.groupType, group.state.orderId);
       }
-      if (group.state.status === "unknown" && group.state.attempt === 1) scheduleAutoRetry(group);
+      if (group.state.status === "unknown") scheduleRecheck(group);
     }
 
     // One order at a time, in order: the customer reads "placing 2 of 3".
@@ -57,10 +93,8 @@ export function useCheckoutRunner() {
       return;
     }
     const next = session.groups.find((g) => g.state.status === "queued");
-    // Minting the key is a persisted transition; the request goes out on the
-    // next run of this effect, after the key is safely in storage.
-    if (next) dispatch(next.groupType, { type: "submit", key: crypto.randomUUID() });
-  }, [session, online, queryClient]);
+    if (next) dispatch(next.groupType, { type: "submit" }); // the key is already on disk
+  }, [session, online, leader, queryClient]);
 }
 
 async function submit(queryClient: QueryClient, group: SessionGroup) {
@@ -73,6 +107,7 @@ async function submit(queryClient: QueryClient, group: SessionGroup) {
       groupType: group.groupType,
       paymentMethod: group.paymentMethod,
       idempotencyKey: key,
+      expectedTotals: group.totals,
       items: group.items.map((i) => ({
         lineId: i.lineId,
         productId: i.productId,
@@ -84,8 +119,8 @@ async function submit(queryClient: QueryClient, group: SessionGroup) {
       type: "created",
       orderId: order.orderId,
       orderStatus: order.status,
+      totals: order.totals,
     });
-    void queryClient.invalidateQueries({ queryKey: CART_KEY });
     const after = current(group.groupType);
     if (after?.state.status === "confirmed") {
       announce(
@@ -96,20 +131,22 @@ async function submit(queryClient: QueryClient, group: SessionGroup) {
     }
   } catch (error) {
     const body = errorBody(error);
-    if (isApiError(error) && error.kind === "http" && error.status === 402) {
+    const status = isApiError(error) && error.kind === "http" ? (error.status ?? 0) : 0;
+    if (status === 402) {
       dispatch(group.groupType, {
         type: "declined",
         reason: body?.message ?? "Your bank declined the card payment.",
       });
       announce(`${group.title}: payment declined. You haven't been charged.`, "assertive");
-    } else if (isApiError(error) && error.kind === "http" && (error.status ?? 0) < 500) {
+    } else if (status === 400 || status === 404 || status === 409 || status === 422) {
+      // A definitive "this order can't be placed as it is"
       dispatch(group.groupType, {
         type: "conflict",
         reason: body?.message ?? "Something in this order changed.",
       });
       announce(`${group.title}: not placed. Please review your cart.`, "assertive");
     } else {
-      // 5xx, timeout, dropped connection: we don't know if it went through.
+      // 5xx, 408, 429, timeout, dropped connection: it may or may not have gone through.
       dispatch(group.groupType, {
         type: "unknown",
         reason: isApiError(error) ? error.kind : "unknown",
@@ -117,6 +154,8 @@ async function submit(queryClient: QueryClient, group: SessionGroup) {
     }
   } finally {
     inFlight.delete(key);
+    // Ordered lines leave the cart (or a failed payment returns them): show the truth
+    void queryClient.invalidateQueries({ queryKey: CART_KEY });
   }
 }
 
@@ -155,13 +194,19 @@ function poll(queryClient: QueryClient, groupType: string, orderId: string) {
   );
 }
 
-function scheduleAutoRetry(group: SessionGroup) {
-  if (group.state.status !== "unknown" || autoRetries.has(group.state.key)) return;
-  autoRetries.add(group.state.key);
-  window.setTimeout(() => {
-    // Same key: if the first attempt did reach the server, this returns that order.
-    if (current(group.groupType)?.state.status === "unknown") {
-      dispatch(group.groupType, { type: "retry" });
-    }
-  }, AUTO_RETRY_MS);
+/** Re-ask about an unknown outcome with the same key, backing off, until it settles. */
+function scheduleRecheck(group: SessionGroup) {
+  if (group.state.status !== "unknown") return;
+  const id = `${group.state.key}:${group.state.attempt}`;
+  if (rechecks.has(id)) return;
+  const delay = Math.min(2000 * 2 ** (group.state.attempt - 1), MAX_RECHECK_MS);
+  rechecks.set(
+    id,
+    window.setTimeout(() => {
+      rechecks.delete(id);
+      if (current(group.groupType)?.state.status === "unknown") {
+        dispatch(group.groupType, { type: "retry" });
+      }
+    }, delay),
+  );
 }

@@ -4,21 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { ShoppingCartIcon } from "lucide-react";
 import Link from "next/link";
 import { useIsClient } from "@/hooks/use-is-client";
-import { fetchCart } from "../api/client";
 import { useCartSession } from "../state/cart-session";
-import { CART_KEY } from "../state/line-sync";
+import { cartQueryOptions } from "../state/line-sync";
 
 /** Header link with the number of items in the cart (account or device). */
 export function CartNavLink() {
   const hydrated = useIsClient();
   const signedIn = useCartSession((s) => s.signedIn);
   const guestItems = useCartSession((s) => s.guestItems);
-  const cart = useQuery({
-    queryKey: CART_KEY,
-    queryFn: ({ signal }) => fetchCart(signal),
-    enabled: hydrated && signedIn,
-    staleTime: 30_000,
-  });
+  const cart = useQuery({ ...cartQueryOptions, enabled: hydrated && signedIn });
   const count = !hydrated
     ? null
     : signedIn

@@ -5,15 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { isActive, isRetryable } from "../../domain/checkout-machine";
+import { canTryAgain, isPending } from "../../domain/checkout-machine";
 import { useCheckoutSession, type CheckoutSession } from "../../state/checkout-session";
 import { OrderStatusCard } from "./order-status-card";
 import { CheckoutSteps } from "./steps";
 
-function headline(session: CheckoutSession, active: boolean): string {
+function headline(session: CheckoutSession): string {
   const total = session.groups.length;
   const placed = session.groups.filter((g) => g.state.status === "confirmed").length;
-  if (active) return total === 1 ? "Placing your order" : "Placing your orders";
+  const working = session.groups.some((g) => isPending(g.state) && g.state.status !== "unknown");
+  const checking = session.groups.filter((g) => g.state.status === "unknown").length;
+  if (working) return total === 1 ? "Placing your order" : "Placing your orders";
+  // Never "wasn't placed" while we don't know: the order may exist.
+  if (checking) return `We're still checking ${checking === 1 ? "1 order" : `${checking} orders`}`;
   if (placed === total)
     return total === 1 ? "Your order is placed" : `All ${total} orders are placed`;
   if (placed === 0)
@@ -30,8 +34,9 @@ export function ProgressStep({ session }: { session: CheckoutSession }) {
   const router = useRouter();
   const clear = useCheckoutSession((s) => s.clear);
   const dispatch = useCheckoutSession((s) => s.dispatch);
-  const active = session.groups.some((g) => isActive(g.state));
-  const retryable = session.groups.filter((g) => isRetryable(g.state));
+  const active = session.groups.some((g) => isPending(g.state));
+  const checking = session.groups.some((g) => g.state.status === "unknown");
+  const retryable = session.groups.filter((g) => canTryAgain(g.state));
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => headingRef.current?.focus(), [active]);
@@ -45,12 +50,14 @@ export function ProgressStep({ session }: { session: CheckoutSession }) {
           tabIndex={-1}
           className="scroll-mt-32 font-heading text-2xl font-bold tracking-tight outline-none sm:text-3xl"
         >
-          {headline(session, active)}
+          {headline(session)}
         </h1>
         <p className="max-w-3xl text-muted-foreground">
-          {active
-            ? "You can keep this page open or leave it. If you close it, we'll pick up where we left off when you come back, and nothing will be charged twice."
-            : "Here's exactly what happened to each order."}
+          {!active
+            ? "Here's exactly what happened to each order."
+            : checking
+              ? "We couldn't confirm everything yet, so we keep checking automatically. Your card won't be charged twice, and you can leave this page."
+              : "You can keep this page open or leave it. If you close it, we'll pick up where we left off when you come back, and nothing will be charged twice."}
         </p>
       </div>
 
@@ -70,7 +77,11 @@ export function ProgressStep({ session }: { session: CheckoutSession }) {
           {!active && retryable.length > 1 && (
             <Button
               variant="outline"
-              onClick={() => retryable.forEach((g) => dispatch(g.groupType, { type: "retry" }))}
+              onClick={() =>
+                retryable.forEach((g) =>
+                  dispatch(g.groupType, { type: "retry", newKey: crypto.randomUUID() }),
+                )
+              }
             >
               <RefreshCwIcon aria-hidden />
               Try the {retryable.length} failed orders again

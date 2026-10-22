@@ -55,6 +55,10 @@ export type BlockReason =
   | { kind: "unavailable" }
   | { kind: "saving" }
   | { kind: "in-checkout" }
+  /** Another order is still being checked out; one checkout at a time. */
+  | { kind: "other-checkout" }
+  /** Not wellness, yet the provider gave no price. */
+  | { kind: "no-price"; lineId: string; title: string }
   | { kind: "offline" };
 
 export interface GroupView {
