@@ -1,7 +1,7 @@
-import { HeartPulseIcon } from "lucide-react";
 import Link from "next/link";
 import { MockPanel } from "@/components/dev/mock-panel";
 import { CartNavLink } from "@/features/cart/components/cart-nav-link";
+import { MedExLogo } from "./medex-logo";
 import { OfflineBanner } from "./offline-banner";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -24,11 +24,14 @@ export function SiteHeader() {
             href="/"
             className="flex items-center gap-2 rounded-md font-heading text-lg font-bold tracking-tight text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <HeartPulseIcon aria-hidden className="size-6 text-primary" />
-            MedEx
+            <MedExLogo />
+            <span className="sr-only">MedEx</span>
           </Link>
           {NAV_LINKS.length > 0 && (
-            <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium md:flex">
+            <nav
+              aria-label="Main"
+              className="hidden items-center gap-1 text-sm font-medium md:flex"
+            >
               {NAV_LINKS.map((link) => (
                 <Link key={link.href} href={link.href} className={linkClass}>
                   {link.label}
