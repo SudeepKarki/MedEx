@@ -155,3 +155,65 @@ test("keyboard only: filter, expand a card, and hear the new count", async ({ pa
   // Focus moved to the first newly revealed service
   await expect(card.locator("li:focus")).toHaveCount(1);
 });
+
+test.describe("regressions found in code review", () => {
+  async function throttle(page: import("@playwright/test").Page, rate: number) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+  }
+
+  test("two quick clicks on a slow device both end up in the URL", async ({ page }) => {
+    await page.goto("/services");
+    await waitForResults(page);
+    await throttle(page, 4);
+    await page.getByRole("checkbox", { name: /^Lab tests/ }).click();
+    await page.getByRole("checkbox", { name: /^Health packages/ }).click({ delay: 0 });
+    await expect(page).toHaveURL(/type=package,lab_test/);
+    await expect(page.getByRole("checkbox", { name: /^Lab tests/ })).toBeChecked();
+  });
+
+  test("typing then sorting keeps the search in the URL", async ({ page }) => {
+    await page.goto("/services");
+    await waitForResults(page);
+    await throttle(page, 4);
+    await page.getByRole("searchbox", { name: /Search services/ }).fill("thyroid");
+    await page.getByRole("combobox", { name: "Sort by" }).click();
+    await page.getByRole("option", { name: "Price: low to high" }).click();
+    await expect(page).toHaveURL(/q=thyroid.*sort=price-asc/);
+    await page.reload();
+    await waitForResults(page);
+    await expect(page.getByRole("searchbox", { name: /Search services/ })).toHaveValue("thyroid");
+  });
+
+  test("removing a filter chip keeps focus in the chip row", async ({ page }) => {
+    await page.goto("/services?type=package,lab_test&city=TH.bangkok");
+    await waitForResults(page);
+    const chips = page.getByRole("button", { name: /, remove filter$/ });
+    await expect(chips).toHaveCount(3);
+    await chips.first().focus();
+    await page.keyboard.press("Enter");
+    await expect(chips).toHaveCount(2);
+    await expect(chips.first()).toBeFocused();
+    // Removing the rest moves focus to the results heading, never to <body>
+    await page.keyboard.press("Enter");
+    await expect(chips).toHaveCount(1);
+    await expect(chips.first()).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(chips).toHaveCount(0);
+    await expect(resultsHeading(page)).toBeFocused();
+  });
+
+  test("each filter group has an accessible name", async ({ page }) => {
+    await page.goto("/services");
+    await waitForResults(page);
+    for (const name of ["Location", "Service type", "Price", "Category", "Provider"]) {
+      await expect(page.getByRole("group", { name, exact: true })).toHaveCount(1);
+    }
+  });
+
+  test("a very long search with an emoji doesn't break the page", async ({ page }) => {
+    await page.goto(`/services?q=${"a".repeat(99)}%F0%9F%98%80`);
+    await expect(resultsHeading(page)).toBeVisible();
+    await expect(page.getByText("No services match all your filters")).toBeVisible();
+  });
+});
