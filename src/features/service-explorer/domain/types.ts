@@ -26,6 +26,7 @@ export interface PriceQuote {
    */
   withoutDiscount: Decimal;
   discount: { kind: "percent"; percent: Decimal } | { kind: "amount" } | null;
+  charge: { kind: "percent"; percent: Decimal } | { kind: "amount" } | null;
   /** `final` rounded for display, in integer minor units: for filtering and sorting. */
   finalMinor: number;
 }

@@ -89,6 +89,11 @@ export function computeQuote(
           ? { kind: "percent", percent: discount }
           : { kind: "amount" }
         : null,
+      charge: chargeAmount.gt(0)
+        ? chargeKind === "percent"
+          ? { kind: "percent", percent: charge }
+          : { kind: "amount" }
+        : null,
       finalMinor: toDisplayMinorUnits(final),
     },
   };
