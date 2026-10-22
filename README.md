@@ -22,8 +22,8 @@ You need Node 20.9+ and pnpm 10.
 | --- | --- |
 | `pnpm dev` | Dev server |
 | `pnpm build && pnpm start` | Production build |
-| `pnpm test` | 43 unit tests (Vitest): checkout state machine, merge policy, idempotent checkout, cart view, money |
-| `pnpm e2e` | 12 Playwright flows against a production build (every scenario below) |
+| `pnpm test` | 46 unit tests (Vitest): checkout state machine, merge policy, idempotent checkout, cart view, money |
+| `pnpm e2e` | 17 Playwright flows against a production build (every scenario below) |
 | `pnpm check` | Typecheck, lint and unit tests |
 
 Playwright needs a Chromium. Run `pnpm exec playwright install chromium`, or point `PLAYWRIGHT_CHROMIUM_PATH` at one you already have.
@@ -43,6 +43,8 @@ Everything is driven from the **Mock API** button in the header. Its **Demo data
 | **Order placed, reply lost** | `POST /api/checkout` → **Fail once** + **Order placed, reply lost**. The server places the order but holds the reply past the browser's timeout. |
 | Payment fails after the order was accepted | `POST /api/checkout` → **Fail once** + **Payment fails after processing**. |
 | **Reload mid-checkout** | Network speed **Slow 3G**, place the orders, reload (or close and reopen the tab). |
+| **Two tabs** | Start a checkout on Slow 3G, then open `/cart/checkout` in a second tab. Both show the same truth, and there are still only 3 orders. |
+| **Order never confirmed** | `POST /api/checkout` → **Fail always** + **Order placed, reply lost**. The order shows "We're still checking 1 order" and stays locked. Set it back to **Works** and it settles by itself (or press **Check now**). |
 | Offline | **Simulate offline**. |
 | Different payment method per order | In the review step, pick **Pay at the clinic** for any order. |
 
@@ -60,7 +62,7 @@ Everything is driven from the **Mock API** button in the header. Its **Demo data
 | 4 | Unavailable items marked, not checkout-able, easy to remove | Their own "No longer available" group, excluded from orders and totals, with **Remove** (focus moves to the next item) |
 | 5 | Check out one group or all; each its own order; card or pay at clinic per order | "Check out lab tests only" per group, or "Check out all 3 orders"; a payment choice per order in the review step |
 | 6 | Partial failure: nothing lost or double-charged; clear outcome; retry only what failed; no duplicates | [State machine](#the-checkout-state-machine), [double charges](#how-double-charges-are-prevented) |
-| 7 | Reload safety | The checkout session is persisted *before* each request; the runner resumes on any `/cart` page |
+| 7 | Reload safety | Every order's key is persisted when checkout starts; the session is saved on every transition; the runner resumes on any page, in one tab at a time |
 | 8 | Guest cart merged on login; each overlap designed; customer told what changed | `POST /cart/merge` → `{ cart, changes }` ([merge policy](#guest-cart-merge)) |
 | 9 | Loading, empty, slow, offline; keyboard; focus on removal and step changes | [States](#states), [Accessibility](#accessibility) |
 
@@ -94,7 +96,7 @@ hooks/use-checkout-runner.ts  drives the machine: submit one at a time, poll, re
 | The account cart | **TanStack Query** cache, keyed `["cart"]` | Server state. Every response carries a `revision`; an older one never overwrites a newer one. |
 | Unsaved edits (quantity, duration, removal) | **Zustand** `cart-edits` | Read and written outside React by the sync engine; the UI renders server state + edits. |
 | Guest device cart, signed-in flag, merge result | **Zustand** `cart-session`, persisted | A real logged-out cart lives on the device. Cleared only after the merge succeeds. |
-| Checkout in progress | **Zustand** `checkout-session`, persisted | Must survive reloads and closed tabs, and be written *before* a request goes out. |
+| Checkout in progress | **Zustand** `checkout-session`, persisted | Must survive reloads and closed tabs, and be written *before* a request goes out. Other tabs follow its writes (`storage` event); a per-order `rev` keeps the newer state. |
 | Payment method per order (review step) | **React Hook Form** + Zod | A form, submitted once to start the checkout. |
 
 ---
@@ -105,14 +107,14 @@ There is one machine per order, implemented as a pure reducer in `domain/checkou
 
 ```mermaid
 stateDiagram-v2
-    [*] --> queued: Place orders
-    queued --> submitting: submit, with a new idempotency key (saved first)
+    [*] --> queued: Place orders (every order gets its key, saved first)
+    queued --> submitting: submit
     submitting --> awaiting_payment: 201, card, status pending
     submitting --> confirmed: 201 paid, or pay at clinic
     submitting --> declined: 402
     submitting --> conflict: 409 (cart changed)
     submitting --> unknown: 5xx, network, timeout, offline
-    unknown --> submitting: retry with the SAME key (once automatically)
+    unknown --> submitting: re-ask with the SAME key (automatically, backing off; or "Check now")
     awaiting_payment --> confirmed: order paid
     awaiting_payment --> declined: order failed, items go back to the cart
     declined --> queued: try again / pay at clinic instead (NEW key)
@@ -129,7 +131,7 @@ stateDiagram-v2
 | `confirmed` (clinic) | "Booked · pay at the clinic · Nothing has been charged; pay when you visit: Tamarind Medical Centre THB 15,230.00 · Silk Route International Hospital INR 23,009.50" |
 | `declined` | "Not placed · Your bank declined the card payment. **You haven't been charged for this order**, and its items are still in your cart." Buttons: **Try again by card**, **Pay at the clinic instead** |
 | `conflict` | "Not placed · The quantity of … changed. Nothing was charged." Button: **Review in your cart** |
-| `unknown` | "Not confirmed yet · We lost touch with our server before it confirmed this order. When we check, we ask about this exact order, so **you won't be charged twice**." |
+| `unknown` | "Not confirmed yet · We lost touch with our server before it confirmed this order, so it may or may not have gone through. We're checking again automatically… **you won't be charged twice**." Headline: "We're still checking 1 order". **Not an outcome:** the cart lines stay locked and there's no "Done" until it settles. |
 
 Orders are submitted **one at a time**, so the customer reads "Placing 2 of 3". A failed order doesn't stop the ones after it. They're independent bookings.
 
@@ -137,24 +139,30 @@ The results heading summarises the outcome: "2 of 3 orders placed". Each order's
 
 ## How double charges are prevented
 
-1. **One idempotency key per attempt, saved before sending.**
-   - The key is minted by the `submit` transition, which is written synchronously to localStorage.
-   - Only then does the runner send the request.
+1. **One idempotency key per attempt, saved before anything is sent.**
+   - Every order's key is minted when the checkout starts, and written synchronously to localStorage.
    - A reload or closed tab at any moment leaves the key on disk.
+   - Every tab that loads the session uses the same keys.
 2. **An unknown outcome is always resolved with the same key.**
-   - "Unknown" means a 5xx, a timeout, a dropped connection or offline.
+   - "Unknown" means a 5xx, 408, 429, a timeout, a dropped connection or offline.
    - The server returns the order it already made, or makes it now. Never a second one.
-   - The runner retries once automatically; after that the customer can press "Check again".
+   - The runner keeps re-asking (2 s, 4 s, 8 s… up to 30 s), and the customer can press "Check now".
+   - Until then the order is pending: never "not placed", lines locked, no "Done".
 3. **The server records the first response per key and replays it** (`server/cart/checkout.ts`):
    - A 402 is recorded: the same key stays declined.
    - A 500 is not recorded: it decided nothing, so retrying really retries.
    - Reusing a key for a *different* payload gets a 409 instead of being silently honoured.
 4. **Only a definitive "no" gets a new key.** After a 402, or a payment that failed after acceptance, the old key would only replay the decline. That order is dead and nothing was charged, so a new attempt is a new order, not a duplicate.
-5. **Double clicks and races are inert.**
+5. **Double clicks, races and extra tabs are inert.**
    - `submit` is ignored unless the order is `queued`.
-   - A request already in flight for a key isn't sent again from the same tab.
-   - Two tabs sending the same key just get the same order.
-6. **The order must match the cart exactly** (lines, quantities, durations). Otherwise it's a 409, and the customer reviews rather than paying for something different from what they saw.
+   - A request already in flight for a key isn't sent again.
+   - Only one tab drives the checkout (Web Locks). The others follow its writes, and if it closes another takes over.
+   - Even without Web Locks, all tabs share the keys, so they'd get the same orders.
+6. **The order must match what the customer reviewed.**
+   - Lines, quantities and durations must match the cart.
+   - The totals the customer saw must match the server's own pricing.
+   - Otherwise it's a 409 (`CART_CHANGED` / `PRICE_CHANGED`), and the customer reviews rather than paying a different amount.
+   - Amounts shown as charged come from the server's order, not the client's snapshot.
 7. **Ordered items leave the cart**, and items of a failed payment come back, once.
 
 The e2e tests prove the hard cases against the server's order list:
@@ -162,6 +170,8 @@ The e2e tests prove the hard cases against the server's order list:
 - *Second of three declined, then retried:* exactly 3 orders, one per group.
 - *Order placed but reply lost:* exactly 1 order.
 - *Reload mid-checkout:* exactly 3 orders, not 6.
+- *A second tab mid-checkout:* exactly 3 orders, and no tab ever says "nothing was charged" for a paid order.
+- *Reply lost on every attempt:* "still checking", locked; then one order once the connection recovers.
 
 ## Optimistic quantity changes
 
@@ -173,7 +183,10 @@ The e2e tests prove the hard cases against the server's order list:
   - Requests for a line never overlap, so they can't arrive out of order.
 - **No flicker.** An intermediate response (say, "4") never replaces the 8 on screen while a newer edit is pending. The e2e test records every value the counter ever shows and asserts it only goes up.
 - **Newest server state wins, by revision.** Every cart response has a `revision`. A response older than the cached cart is ignored, so a slow GET, or a PATCH for another line, can't regress anything.
-- **Rollback with a reason.** A refused or failed change returns to the last saved value and says why: "We couldn't save the new quantity. Quantity is back to 1." The message is shown inline and announced.
+- **Rollback with a reason.**
+  - A *definitive* refusal (4xx) returns to the last saved value and says why: "… Quantity is back to 1."
+  - An *unclear* failure (5xx, timeout, dropped connection) may have saved after all. It refetches the cart and says "Showing what's saved" instead of guessing.
+  - Either way, only the failed field is undone. Anything else pending for that line (a removal queued behind it, say) is still sent.
 - **Limits settle instead of snapping back.** Taps are coalesced, so asking for 11 sends one request for 11. When the 409 says the limit is 10, the line settles on 10 ("You can book at most 10 of … We've set it to 10.") rather than jumping back to the last saved value. The stepper also stops at 10 from then on.
 - **Removal is optimistic too.** Focus moves to the next item (or the group heading), and on failure the item reappears with a message.
 
@@ -203,7 +216,9 @@ The e2e tests prove the hard cases against the server's order list:
 | *(not in the fixture)* Quantity above the limit | Capped | `quantity_limited` |
 | Same or smaller quantity on the device | Unchanged | `already_in_cart` (folded into another sentence when one exists) |
 
-Because "keep the larger" is idempotent, **retrying a merge after a lost reply changes nothing**. The device cart is cleared only after the merge succeeds; if it fails, the customer is still signed out with nothing lost.
+Because "keep the larger" is idempotent, **retrying a merge changes nothing**. The merge also carries an idempotency key per sign-in attempt, and the server replays the first response. A retried sign-in therefore still reports what was actually added, not "already in your cart".
+
+The device cart is cleared only after the merge succeeds; if it fails, the customer is still signed out with nothing lost.
 
 The customer sees one sentence per change, shown once after signing in. For example: "Liver Function Profile: your account had 2 and this device had more, so we kept 3. We don't add the two together, so nothing is booked twice."
 
@@ -226,8 +241,8 @@ The customer sees one sentence per change, shown once after signing in. For exam
 | `GET /api/cart` | `GET /v2/cart` shape plus each line's `wellnessPricingId` and a `revision` |
 | `PATCH /api/cart/items/:lineId` `{quantity}` / `{wellnessPricingId}` | 409 `QUANTITY_LIMIT` (10 per item; insurance 1) with `maxQuantity`; 409 for removed products |
 | `DELETE /api/cart/items/:lineId` | Idempotent 204 |
-| `POST /api/cart/merge` | `{ cart, changes }` |
-| `POST /api/checkout` | 201 · 402 · 409 · 500, idempotent by key |
+| `POST /api/cart/merge` | `{ cart, changes }`; optional `idempotencyKey` replays the first response |
+| `POST /api/checkout` | 201 · 402 · 409 · 500, idempotent by key; optional `expectedTotals` → 409 `PRICE_CHANGED` if different |
 | `GET /api/orders/:orderId` | Card payments settle after ~2.5 s |
 | *Extras:* `GET /api/catalog`, `POST /api/cart/items` | Resolve the guest cart; refill the cart from the empty state |
 | *Demo:* `POST /api/demo/reset`, `GET /api/demo/orders`, `GET /api/demo/guest-cart` | Reset, inspect, seed |
@@ -286,7 +301,6 @@ The new **"Fail 2nd call"** mode in the panel reproduces "the second of three or
 
 ## Left out, and what I'd do next
 
-- **Cross-tab coordination.** Two tabs running the same checkout are safe (same keys) but both poll. A `BroadcastChannel` lease would make one tab the runner.
 - **Real payment flows:** 3-D Secure redirects (a `requires_action` state), and payment provider webhooks instead of polling.
 - **Undo for removal** (needs a re-add endpoint), and a provider grouping inside each order.
 - **A screen-reader pass** with NVDA or VoiceOver, plus axe checks in the e2e suite.
@@ -294,14 +308,15 @@ The new **"Fail 2nd call"** mode in the panel reproduces "the second of three or
 
 ## Tests
 
-- **Unit (43):**
+- **Unit (46):**
   - checkout state machine transitions;
   - server merge policy (including idempotency);
   - idempotent checkout (replay, key reuse, recorded decline vs unrecorded 500, cart validation, async settlement, restoring items);
   - cart view (unknown prices never 0, per-currency subtotals, edits, locks);
   - merge copy;
   - money.
-- **E2E (12):** [`e2e/cart.spec.ts`](e2e/cart.spec.ts) covers every scenario in the table at the top, against a production build, checking the server's order list for duplicates. Plus a shell smoke test.
+- **E2E (17):** [`e2e/cart.spec.ts`](e2e/cart.spec.ts) covers every scenario in the table at the top, against a production build, checking the server's order list for duplicates. Plus a shell smoke test.
+  - Five of them are regression tests for issues found in a code review: an unconfirmed order shown as "not placed", a second tab contradicting the first, checkout stalling when leaving the cart, a stale results page, and a removal lost behind a failed save.
 
 ## AI tools
 
@@ -313,6 +328,6 @@ This exercise was built with **Claude Code** (Anthropic's AI coding agent) worki
   - wrote the unit and e2e tests;
   - drove a headless browser to check each state;
   - drafted this README.
-- **A second agent** reviewed the code adversarially, and its findings were verified and fixed.
+- **A second agent** reviewed the code adversarially. It found no way to double-charge, but did find 11 issues where the UI could mislead or an edit could be lost. All were verified and fixed, most with a regression test. That included the multi-tab coordination and the "still checking" state.
 
 <!-- TODO(author): before submitting, describe your own review, the changes you made, and anything you'd decide differently. You'll be asked to explain and extend this code live. -->
