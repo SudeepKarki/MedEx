@@ -15,3 +15,11 @@ export async function setMockControls(
     );
   }, state);
 }
+
+export const resultsHeading = (page: Page) => page.locator("#results-heading");
+
+export async function waitForResults(page: Page) {
+  await resultsHeading(page)
+    .filter({ hasText: /services? from/ })
+    .waitFor();
+}
