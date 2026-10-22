@@ -26,8 +26,8 @@ You need Node 20.9+ and pnpm 10.
 | --- | --- |
 | `pnpm dev` | Dev server |
 | `pnpm build && pnpm start` | Production build. Use this for anything performance-related. |
-| `pnpm test` | 59 unit tests (Vitest): pricing, data cleaning, URL codec, facet engine |
-| `pnpm e2e` | 10 Playwright flows against a production build |
+| `pnpm test` | 66 unit tests (Vitest): pricing, data cleaning, URL codec, location tree, facet engine |
+| `pnpm e2e` | 15 Playwright flows against a production build |
 | `pnpm perf` | Performance budget check: filter → paint, keystroke → paint, layout shift |
 | `pnpm check` | Typecheck, lint and unit tests |
 
@@ -51,6 +51,7 @@ The settings persist across reloads, so you can break the services endpoint and 
 | Offline | "Simulate offline", then reload. Switch it off and the page loads by itself. |
 | Empty | [`/services?type=insurance&city=NP.pokhara&home=1`](http://localhost:3000/services?type=insurance&city=NP.pokhara&home=1) |
 | Partial data | The **Data quality report** link under the results lists what was hidden or adjusted, and why. |
+| Unexpected crash | Caught by `app/error.tsx`, which shows a calm message, **Try again** and a link to a new search. The filters survive, because they're in the URL. |
 | The story | [`/services?type=package&city=TH.bangkok&currency=THB&max=5000`](http://localhost:3000/services?type=package&city=TH.bangkok&currency=THB&max=5000) |
 
 You can also break endpoints from curl: `curl 'localhost:3000/api/service?_fail=503&_latency=2000'`.
@@ -105,7 +106,7 @@ Everything in `domain/` is pure TypeScript with no React, which keeps it easy to
 
 | State | Lives in | Why |
 | --- | --- | --- |
-| Filters, sort, page | **The URL** (`useSearchParams` + `history.pushState`) | The brief requires it, and there is no second copy to get out of sync. |
+| Filters, sort, page | **The URL** (`useSearchParams` to read, `history.pushState` to write) | The brief requires it, and there is no second copy to get out of sync. Writes are *updaters* applied to the live address bar (see "The URL"). |
 | Search box text while typing | Local `useState` (`useSearchDraft`) | Typing must never wait. It's written to the URL after a 300 ms pause. |
 | Server data | **TanStack Query** cache | Caching, retries and offline pausing come for free. |
 | Mobile drawer's pending filters | **React Hook Form** | It's a draft form applied on submit. `useWatch` drives the live count. |
@@ -166,7 +167,7 @@ There are no exchange rates, so a price range only means something inside one cu
   - The data contains 25 prices that land exactly on a half-cent (e.g. 10,899.975). Float maths gets several of them wrong.
 - **Filtering and sorting** compare the *displayed* (rounded) amount in integer minor units, so the filter always agrees with what's on screen.
 - **The struck-through price is like-for-like.** It shows what you'd pay *without the discount*: list price plus the service charge on it.
-  - Striking through the raw `price` would be misleading. 39 services have a discount *and* a service charge where the final price is **higher** than `price`, e.g. 8,760.00 → 8,934.00.
+  - Striking through the raw `price` would be misleading. 31 visible services (39 in the file) have a discount *and* a service charge where the final price is **higher** than `price`, e.g. 8,760.00 → 8,934.00.
   - An ⓘ popover shows the full breakdown (price, discount, service charge, you pay).
 - **"Free":** a 0.00 price shows as "Free", not as missing.
 - **Wellness:**
@@ -204,6 +205,11 @@ There are no exchange rates, so a price range only means something inside one cu
 
 - **Canonical.** There is one fixed key order, lists are sorted, defaults are omitted, and commas are left unescaped so links stay readable. The same view always gives the same URL, and a non-canonical URL is tidied with `replaceState`.
 - **Discrete changes push** a history entry; **typing replaces** within a burst. Back undoes a whole search, not one letter.
+- **No lost clicks.**
+  - Next.js updates `useSearchParams` in a transition, so during a burst of clicks React state can be a step behind the address bar.
+  - Every change is therefore an *updater* (`(current) => next`), applied to the filters in `window.location` at that moment plus the search box's live text. It is never built from possibly stale props.
+  - The same applies to the corrections (canonical form, removed values, page clamping).
+  - E2E tests prove it under 4× CPU throttling: two quick clicks both land, and typing then sorting keeps the search.
 - **Stale or hand-edited links degrade.** Malformed values are dropped while parsing. Values the data doesn't know (a provider that left, `page=999`) are removed or clamped, with a toast that names what was removed.
 - **No flash of an unfiltered list.** The explorer reads the URL inside `<Suspense>`, so the prerendered shell is a skeleton. The first client render already uses the URL's filters, and an e2e test watches every heading the page ever renders.
 - **Providers are identified by numeric id**, because their slugs are inconsistent in the data (see below).
@@ -237,9 +243,9 @@ Every decision below is recorded at load time as a `DataIssue`. You can check it
 | 5 providers with **`rating: null`, 0 reviews** | "New on MedEx · no reviews yet" | Not "0 stars". Average for relevance, last for "Highest rated". |
 | **Slug mismatch**: `username: monsoon-spa-and-retreat` vs `slug: monsoon-spa-retreat` (2 providers) | Nothing | URLs use numeric provider ids. |
 | **Golden Mile International Hospital**: active, no services | Not in the provider filter | It could only lead to an empty page. |
-| 39 services where discount + charge ⇒ final > `price` | Struck-through price includes the charge | See "The final price". |
+| 31 visible services (39 in the file) where discount + charge ⇒ final > `price` | Struck-through price includes the charge | See "The final price". |
 | 25 final prices exactly on a half-cent | Correct half-up rounding | Exact decimals, rounded once. |
-| 747 cases of the **same title twice at one provider** | Both shown | Different ids, and often different prices or durations. Merging would hide real options. Worth deduplicating at the source. |
+| 645 cases among visible services (747 in the file) of the **same title twice at one provider** | Both shown | Different ids, and often different prices or durations. Merging would hide real options. Worth deduplicating at the source. |
 | Titles that don't fit their category (e.g. "Physiotherapy" under Vaccination › Travel Vaccines) | Shown as entered | Can't be fixed reliably on the client. Belongs in a data-quality job upstream. |
 | Defensive cases not in this file: unknown type/provider/category, unparseable money, unknown discount type, wellness without valid durations, duplicate durations, out-of-range ratings, home test without a fee | Skipped, hidden or "Price on request", each with an issue recorded | The data is hand-entered, so the next file will have new mistakes. Unknown category ⇒ hidden: if we can't confirm it's active, we fail closed. |
 
@@ -277,8 +283,8 @@ During the work I also used Chrome traces and CPU profiles (`next build --no-man
 
 | | 1× (this laptop) | 2× slower CPU | 4× slower CPU |
 | --- | --- | --- | --- |
-| Filter → results painted (5 different filters) | 33–63 ms | 65–139 ms | 137–299 ms |
-| Worst keystroke → next paint | 32 ms | 40 ms | 56 ms |
+| Filter → results painted (5 different filters) | 33–61 ms | 58–119 ms | 110–259 ms |
+| Worst keystroke → next paint | 32 ms | 32 ms | 96 ms |
 | Keystrokes over 50 ms (of ~100) | 0 | 0 | 2 |
 | CLS (layout shift not caused by input) | 0.000 | 0.000 | 0.000 |
 
@@ -301,7 +307,7 @@ The checkbox itself paints its new state in about 3 ms, because it's a native co
 - **Escape** clears the search box.
 - Focus is managed:
   - "View all" moves focus to the first revealed service;
-  - removing a chip moves focus to the next chip;
+  - removing a chip moves focus to the next chip, or to the results heading when none are left;
   - changing page focuses the results heading;
   - the error state focuses its heading;
   - dialogs and the drawer trap focus and restore it on close.
@@ -345,13 +351,15 @@ The checkbox itself paints its new state in about 3 ms, because it's a native co
 
 ## Tests
 
-- **Unit tests (Vitest, 59):**
+- **Unit tests (Vitest, 66):**
   - the price formula and its edge cases (negative, free, unparseable, mid-calculation rounding, like-for-like strike price);
   - catalog cleaning against the real data (visibility counts, ultrasound and thyroid keys, unrated providers, malformed records);
-  - the URL codec (round-trip, canonical form, junk tolerance, stale-value sanitising);
+  - the URL codec (round-trip, canonical form, junk tolerance, stale-value sanitising, emoji-safe truncation);
+  - the country/city tree (absorbing, splitting and collapsing selections);
   - the engine (brute-force facet counts, ultrasound, price filter across currencies and wellness durations, sorting, search, empty-state counts, pagination);
   - money formatting and rounding.
-- **E2E (Playwright, 10):** see [`e2e/explorer.spec.ts`](e2e/explorer.spec.ts) and [`e2e/mobile.spec.ts`](e2e/mobile.spec.ts). Plus `pnpm perf`.
+- **E2E (Playwright, 15):** see [`e2e/explorer.spec.ts`](e2e/explorer.spec.ts) and [`e2e/mobile.spec.ts`](e2e/mobile.spec.ts). Plus `pnpm perf`.
+  - Five of them are regression tests for issues found in a code review: lost clicks under CPU throttling, the search dropped by a quick sort, chip-removal focus, unnamed filter groups, and a long search with an emoji crashing the page.
 
 ## AI tools
 
@@ -365,5 +373,16 @@ This exercise was built with **Claude Code** (Anthropic's AI coding agent) worki
   - drove a headless browser to check each state,
   - profiled and optimised the performance,
   - drafted this README.
+- **A second agent** reviewed the finished code adversarially. Its 10 findings were verified and fixed, each with a regression test where one could be written:
+  - stale-state URL writes losing clicks,
+  - an emoji truncation crash,
+  - unnamed filter groups,
+  - chip focus,
+  - a city-toggle edge case,
+  - fractional slider steps,
+  - card expansion after reordering,
+  - a chatty live region,
+  - non-canonical URL checks,
+  - two README counts.
 
 <!-- TODO(author): before submitting, describe your own review, the changes you made, and anything you'd decide differently. You'll be asked to explain and extend this code live. -->
