@@ -14,8 +14,8 @@ const byId = (id: string) => catalog.services.find((s) => s.id === id);
 
 describe("buildCatalog with the assessment data", () => {
   it("applies all three visibility rules", () => {
-    // 3,200 services − 198 switched off − 103 live ones at 2 inactive providers
-    // − 46 in the inactive "Seasonal Offers" category
+    // 3,200 services − 198 switched off − 108 live ones at 2 inactive providers
+    // − 41 remaining in the inactive "Seasonal Offers" category
     expect(catalog.services).toHaveLength(2853);
     expect(byId(DISABLED_THYROID_ID)).toBeUndefined();
     expect(catalog.services.some((s) => [161, 162].includes(s.providerId))).toBe(false);
