@@ -9,7 +9,7 @@ import {
   type RawService,
 } from "../api/raw-schemas";
 import { computeQuote } from "./pricing";
-import { cleanDisplayText, normalizeText } from "./text";
+import { cleanDisplayText, normalizeText, withJoinedPairs } from "./text";
 import {
   isServiceType,
   type Catalog,
@@ -152,8 +152,8 @@ export function buildCatalog(raw: RawCatalog): Catalog {
 
     const pricing = priceService(record, provider.currency, title, issues);
     const homeTest = homeTestOf(record, title, issues);
-    const categoryText = normalizeText(
-      [category?.title, subcategory?.title].filter(Boolean).join(" "),
+    const categoryText = withJoinedPairs(
+      normalizeText([category?.title, subcategory?.title].filter(Boolean).join(" ")),
     );
     const titleText = normalizeText(title);
 
@@ -171,7 +171,9 @@ export function buildCatalog(raw: RawCatalog): Catalog {
       createdAt: record.createdAt ?? "",
       titleText,
       categoryText,
-      searchText: [titleText, categoryText, provider.nameText].filter(Boolean).join(" "),
+      searchText: [withJoinedPairs(titleText), categoryText, withJoinedPairs(provider.nameText)]
+        .filter(Boolean)
+        .join(" "),
     });
   }
 

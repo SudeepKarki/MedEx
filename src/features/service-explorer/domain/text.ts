@@ -21,6 +21,18 @@ export function normalizeText(value: string): string {
     .join(" ");
 }
 
+/**
+ * Indexed text plus each pair of neighbouring words joined ("health check up" gains
+ * "healthcheck checkup"), so "checkup" and "check-up" also find text written as two
+ * words. Only for indexed text: a query keeps its own words, so "blood test" still
+ * finds "Blood Sugar Test".
+ */
+export function withJoinedPairs(normalized: string): string {
+  const words = normalized.split(" ").filter(Boolean);
+  const pairs = words.slice(1).map((word, i) => words[i] + word);
+  return [...words, ...pairs].join(" ");
+}
+
 /** Tokens of a search query, normalised the same way as the indexed text. */
 export function tokenize(query: string): string[] {
   const normalized = normalizeText(query);
