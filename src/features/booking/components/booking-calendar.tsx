@@ -57,7 +57,11 @@ function describe(date: PlainDate, status: DayStatus | undefined, bounds: { firs
   return "Loading…";
 }
 
-/** The fuller reason for the line under the grid: why the specialist's hours can't be booked that day. */
+/**
+ * The fuller reason, for the day's tooltip and description: why the specialist's hours can't
+ * be booked that day. The line under the grid keeps to the short reason, so it stays one line
+ * and nothing below it moves as the pointer crosses the calendar.
+ */
 function explain(date: PlainDate, status: DayStatus | undefined, bounds: { first: PlainDate; last: PlainDate }) {
   return status?.kind === "specialist-off" ? status.detail : describe(date, status, bounds);
 }
@@ -293,7 +297,7 @@ export function BookingCalendar({
         {shown && (
           <>
             <span className="font-medium">{formatPlainDate(shown)}</span>
-            <span className="text-muted-foreground"> · {explain(shown, statuses.get(shown), bounds)}</span>
+            <span className="text-muted-foreground"> · {describe(shown, statuses.get(shown), bounds)}</span>
           </>
         )}
       </p>
