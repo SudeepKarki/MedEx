@@ -67,7 +67,7 @@ export function CartLineItem({
               isn&apos;t included in any order.
             </p>
           </div>
-          <Button variant="outline" onClick={remove} disabled={line.saving}>
+          <Button variant="outline" onClick={remove} disabled={line.saving || locked}>
             <Trash2Icon aria-hidden />
             Remove
           </Button>

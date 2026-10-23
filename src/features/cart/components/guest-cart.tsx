@@ -2,13 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { SmartphoneIcon, Trash2Icon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/money";
 import { fetchCatalog, fetchGuestSeed } from "../api/client";
 import { durationLabel, groupTitle } from "../domain/labels";
 import { useCartSession } from "../state/cart-session";
+import { focusById } from "../state/focus-after-removal";
 import { SignInDialog } from "./sign-in-dialog";
 
 /**
@@ -28,6 +29,20 @@ export function GuestCart() {
   useEffect(() => {
     if (guestItems === null) void fetchGuestSeed().then(setGuestItems);
   }, [guestItems, setGuestItems]);
+
+  // After a removal, focus the next item, else the previous one, else the cart heading
+  const pendingFocus = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!pendingFocus.current) return;
+    if (focusById(pendingFocus.current) || focusById("cart-heading")) pendingFocus.current = null;
+  }, [guestItems]);
+  const remove = (productId: string) => {
+    const items = guestItems ?? [];
+    const i = items.findIndex((item) => item.productId === productId);
+    const sibling = items[i + 1] ?? items[i - 1];
+    pendingFocus.current = sibling ? `guest-${sibling.productId}` : "cart-heading";
+    removeGuestItem(productId);
+  };
 
   const products = new Map(catalog.data?.map((p) => [p.id, p]));
 
@@ -66,7 +81,13 @@ export function GuestCart() {
               return (
                 <li key={item.productId} className="flex items-center justify-between gap-4 p-5">
                   <div>
-                    <p className="font-medium">{product?.title ?? "Service no longer available"}</p>
+                    <p
+                      tabIndex={-1}
+                      data-focus-id={`guest-${item.productId}`}
+                      className="scroll-mt-24 font-medium outline-none"
+                    >
+                      {product?.title ?? "Service no longer available"}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {product
                         ? `${groupTitle(product.type)} · ${product.providerName} · Qty ${item.quantity}${option ? ` · ${durationLabel(option.durationMinutes)}` : ""}`
@@ -85,7 +106,7 @@ export function GuestCart() {
                       variant="ghost"
                       size="icon"
                       aria-label={`Remove ${product?.title ?? "item"}`}
-                      onClick={() => removeGuestItem(item.productId)}
+                      onClick={() => remove(item.productId)}
                     >
                       <Trash2Icon aria-hidden />
                     </Button>
