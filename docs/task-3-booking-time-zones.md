@@ -6,7 +6,7 @@ A date and time picker for booking an appointment with a provider in another tim
 
 **The answer to the customer's question, everywhere on the page:** every time is the provider's ("10:40 AM Thailand time"), because that's the clock the customer has to be there by. Their own time is shown under it, labelled "your time", with "next day" when it falls on a different date for them.
 
-> This is the README of the `task-3-booking-time-zones` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: the bookable-provider list is `GET /api/booking/providers` (`/api/providers` is Task 1's list), and **Reset demo bookings** is `POST /api/demo/reset?scope=booking`. Also, `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion.
+> This is the README of the `task-3-booking-time-zones` branch, where this exercise lives on its own on top of the shared foundation. On `main` all three exercises run in one app and it applies as written, except: the bookable-provider list is `GET /api/booking/providers` (`/api/providers` is Task 1's list), and **Reset demo bookings** is `POST /api/demo/reset?scope=booking`. Also, `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion.
 
 ---
 

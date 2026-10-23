@@ -1,6 +1,6 @@
 # MedEx: Senior Frontend Engineer take-home
 
-This branch, `dev`, runs all three exercises in one app. It merges the three task branches on top of the shared foundation from `main`.
+`main` runs all three exercises in one app: the three task branches, merged on top of a shared foundation.
 
 | Exercise | Open | Branch | README |
 | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ This branch, `dev`, runs all three exercises in one app. It merges the three tas
 | Task 2: Multi-provider cart and split checkout | `/cart` | `task-2-cart-checkout` | [docs/task-2-cart-checkout.md](docs/task-2-cart-checkout.md) |
 | Task 3: Appointment booking across time zones | `/book` | `task-3-booking-time-zones` | [docs/task-3-booking-time-zones.md](docs/task-3-booking-time-zones.md) |
 
-Each exercise's README (its decisions, trade-offs, data findings and what's left out) is in `docs/`, copied from its branch. Each task branch is still the place to review one exercise on its own; `main` holds only the shared foundation.
+Each exercise's README (its decisions, trade-offs, data findings and what's left out) is in `docs/`, copied from its branch. Each task branch is still the place to review one exercise on its own.
 
 ## Run it
 
@@ -132,7 +132,7 @@ These came out of profiling Task 1 (3,200 items, live counts) and are shared so 
 
 This was built with **Claude Code** (Anthropic's AI coding agent) working under my direction:
 
-- **I chose:** the stack (Next.js, shadcn/ui, Tailwind, Zustand, React Hook Form), the branch-per-task structure, and to merge everything into `dev`.
+- **I chose:** the stack (Next.js, shadcn/ui, Tailwind, Zustand, React Hook Form), the branch-per-task structure, and to merge everything into one app on `main`.
 - **The agent:** wrote the foundation, the three exercises and their tests; did this merge and resolved its conflicts; and ran every test suite on the merged app. Each exercise's README says where AI was used for it.
 - **Before submitting,** agents checked each exercise line by line against its brief, and each finding was verified before it was fixed. Each exercise's README lists them under "Found in a final check against the brief".
 

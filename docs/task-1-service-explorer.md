@@ -10,7 +10,7 @@ This is a Next.js 16 page where customers browse 3,200 services from 67 provider
 - side-by-side comparison of providers,
 - a report of every data-quality decision made.
 
-> This is the README of the `task-1-service-explorer` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion. The shared error page offers **Go to the home page** rather than a new search, and on phones the header's links sit on a row of their own.
+> This is the README of the `task-1-service-explorer` branch, where this exercise lives on its own on top of the shared foundation. On `main` all three exercises run in one app and it applies as written, except: `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion. The shared error page offers **Go to the home page** rather than a new search, and on phones the header's links sit on a row of their own.
 
 ---
 

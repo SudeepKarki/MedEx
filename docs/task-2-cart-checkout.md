@@ -6,7 +6,7 @@ A cart that holds services from different providers, of different types, in diff
 
 The core of the exercise is partial failure: when one order fails, nothing that succeeded is lost or charged twice, the customer knows exactly what happened, and a retry never creates a duplicate.
 
-> This is the README of the `task-2-cart-checkout` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: **Reset demo** resets only the cart: `POST /api/demo/reset?scope=cart` (`/api/demo/reset` is shared with Task 3). Also, `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion.
+> This is the README of the `task-2-cart-checkout` branch, where this exercise lives on its own on top of the shared foundation. On `main` all three exercises run in one app and it applies as written, except: **Reset demo** resets only the cart: `POST /api/demo/reset?scope=cart` (`/api/demo/reset` is shared with Task 3). Also, `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion.
 
 ---
 
