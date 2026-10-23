@@ -136,6 +136,43 @@ test("an unavailable item is marked, never ordered, and easy to remove", async (
   );
 });
 
+test("offline: the cart stays readable, nothing can change, and loading says why", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.getByRole("button", { name: /mock api controls/i }).click();
+  await page.getByRole("switch", { name: /Simulate offline/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page
+      .getByText("You're offline. Your cart is saved; reconnect to check out.")
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add one more Liver Function Profile" }),
+  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Remove Liver Function Profile" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Remove", exact: true })).toBeDisabled(); // the unavailable item
+  // Opening the cart while offline says so, rather than showing a silent skeleton
+  await setMockControls(page, { latency: "fast", simulateOffline: true });
+  await page.reload();
+  await expect(
+    page.getByText("You're offline. Your cart will load as soon as you're back online."),
+  ).toBeVisible();
+});
+
+test("removing an item from this device's cart moves focus to the next one", async ({ page }) => {
+  await page.goto("/cart");
+  await page.getByRole("heading", { name: "On this device" }).waitFor();
+  const titles = page.locator('[data-focus-id^="guest-"]');
+  const next = (await titles.nth(1).textContent()) ?? "";
+  await page
+    .getByRole("button", { name: /^Remove / })
+    .first()
+    .click();
+  await expect(page.locator(":focus")).toHaveText(next);
+});
+
 test("partial failure: the second order is declined, retrying places only that one", async ({
   page,
 }) => {
