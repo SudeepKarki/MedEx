@@ -57,6 +57,11 @@ function describe(date: PlainDate, status: DayStatus | undefined, bounds: { firs
   return "Loading…";
 }
 
+/** The fuller reason for the line under the grid: why the specialist's hours can't be booked that day. */
+function explain(date: PlainDate, status: DayStatus | undefined, bounds: { first: PlainDate; last: PlainDate }) {
+  return status?.kind === "specialist-off" ? status.detail : describe(date, status, bounds);
+}
+
 /**
  * The 90-day calendar, as an ARIA grid (the APG date-picker pattern): one tab
  * stop, arrows move by day/week, Home/End to the week's ends, PageUp/PageDown
@@ -232,7 +237,7 @@ export function BookingCalendar({
                     aria-disabled={tone === "available" || tone === "few" ? undefined : true}
                     aria-current={isToday ? "date" : undefined}
                     aria-label={label}
-                    title={reason}
+                    title={explain(date, status, bounds)}
                     onClick={() => {
                       go(date, false);
                       choose(date);
@@ -288,7 +293,7 @@ export function BookingCalendar({
         {shown && (
           <>
             <span className="font-medium">{formatPlainDate(shown)}</span>
-            <span className="text-muted-foreground"> · {describe(shown, statuses.get(shown), bounds)}</span>
+            <span className="text-muted-foreground"> · {explain(shown, statuses.get(shown), bounds)}</span>
           </>
         )}
       </p>
@@ -297,9 +302,12 @@ export function BookingCalendar({
         <Legend swatch={<span className="size-1.5 rounded-full bg-success" />}>Free times</Legend>
         <Legend swatch={<span className="size-1.5 rounded-full bg-warning" />}>A few left</Legend>
         <Legend swatch={<span className="text-[10px] line-through">12</span>} box="bg-muted/60">
-          Fully booked
+          No free times
         </Legend>
         <Legend box="bg-[repeating-linear-gradient(135deg,transparent_0_3px,var(--color-border)_3px_4px)]">Closed</Legend>
+        <Legend swatch={<span className="text-[10px] opacity-50">12</span>} box="border-transparent">
+          Past, or more than 90 days ahead
+        </Legend>
         {marked && (
           <Legend swatch={<span className="size-2 rotate-45 rounded-[2px] bg-warning-foreground" />}>{marked.label}</Legend>
         )}

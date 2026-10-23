@@ -168,6 +168,9 @@ test("a specialist whose hours run past closing: only the overlap is offered, an
   // Nothing at or after 8:00 PM (Riverside's latest closing)
   await expect(page.getByRole("option", { name: /^8:\d\d PM Thailand/ })).toHaveCount(0);
   await expect(page.getByRole("option", { name: /^7:40 PM Thailand/ })).toHaveCount(1); // the last that ends by 8
+  // Fridays close at 5 PM, before Dr. Rana starts: the calendar says why, not just "no times"
+  const friday = page.getByRole("gridcell", { name: /^Friday, .*Outside opening hours$/ }).first();
+  await expect(friday).toHaveAttribute("title", /on Fridays the provider is only open 8:00 AM – 5:00 PM/);
 });
 
 test("a group of 3 can only start where 3 times in a row are free", async ({ page }) => {

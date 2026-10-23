@@ -213,7 +213,7 @@ function EmptyDay({
           detail: `A booking for ${people} needs ${people} free times in a row with the same specialist. There are free times, but not ${people} together.`,
         };
       case "specialist-off":
-        return { title: `No consultation hours on ${day}`, detail: status.detail };
+        return { title: `No times inside opening hours on ${day}`, detail: status.detail };
       case "past":
         return { title: `${day} has passed`, detail: `It's already later than that at ${provider.name}.` };
       case "not-open-yet":

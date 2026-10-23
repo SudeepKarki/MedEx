@@ -137,4 +137,16 @@ describe("describeDay", () => {
     const slot = result.specialists[0]!.slots.find((s) => toClock(s.startMinutes) === "11:20")!;
     expect(slot).toMatchObject({ state: "current", bookable: false });
   });
+
+  it("rescheduling today: your own times that have started can't be a new start", () => {
+    // A booking for 2 at 10:00 and 10:40; it's 10:50, so both have started
+    const current = { date: "2026-10-22", specialistId: "wong", slotTimes: ["10:00", "10:40"] };
+    const result = day({ specialistId: "wong", current, people: 2 });
+    const own = result.specialists[0]!.slots.filter((s) =>
+      ["10:00", "10:40"].includes(toClock(s.startMinutes)),
+    );
+    expect(own.map((s) => s.state)).toEqual(["started", "started"]);
+    expect(bookable(result, "wong")).not.toContain("10:40");
+    expect(bookable(result, "wong")[0]).toBe("11:20");
+  });
 });

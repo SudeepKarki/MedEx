@@ -124,8 +124,18 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
 
   // An unanswered attempt's own slot may well be booked by *them*: don't call it someone else's
   const problem = slot && day && !confirmer.unknown ? slotProblem(slot, findSlot(day.specialists, slot), people) : null;
-  // Confirm only against this day's real slots, never against a guess
-  const waitingFor = !date || !slot || day ? null : slots.isError ? "times-failed" : "times-loading";
+  // Confirm only against this day's real slots, never against a guess. After a 409 the
+  // slots on screen are the ones that said the time was free, so wait for the refetch.
+  const waitingFor =
+    !date || !slot
+      ? null
+      : !day
+        ? slots.isError
+          ? "times-failed"
+          : "times-loading"
+        : confirmer.failure?.kind === "taken" && slots.isFetching
+          ? "times-loading"
+          : null;
 
   const sent = confirmer.lastRequest;
   const wanted = sent ? { date: sent.date, slot: { specialistId: sent.specialistId, startTime: sent.startTime } } : null;
