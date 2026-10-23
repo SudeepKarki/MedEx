@@ -16,26 +16,18 @@ import {
 } from "@/components/ui/sheet";
 import { formatCount } from "@/lib/money";
 import { computeView, type ExplorerIndex } from "../domain/engine";
-import { activeFacets, clearAllFilters, type ExplorerFilters } from "../domain/filters";
+import {
+  activeFacets,
+  clearAllFilters,
+  DEFAULT_FILTERS,
+  type ExplorerFilters,
+} from "../domain/filters";
 import { pluralize } from "../domain/labels";
 import type { FilterUpdate } from "../hooks/use-url-filters";
 import { FilterPanel } from "./filters/filter-panel";
 
-const FILTER_KEYS = [
-  "q",
-  "types",
-  "categories",
-  "subcategories",
-  "providers",
-  "countries",
-  "cities",
-  "currency",
-  "priceMin",
-  "priceMax",
-  "homeTest",
-  "sort",
-  "page",
-] as const satisfies readonly (keyof ExplorerFilters)[];
+// Every filter, from the defaults (which must list them all), so a new one can't be missed here
+const FILTER_KEYS = Object.keys(DEFAULT_FILTERS) as (keyof ExplorerFilters)[];
 
 /**
  * Small screens: filters in a drawer, applied together. The pending selection
