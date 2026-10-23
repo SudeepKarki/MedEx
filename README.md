@@ -23,7 +23,7 @@ You need Node 20.9+ and pnpm 10.
 | `pnpm dev` | Dev server |
 | `pnpm build && pnpm start` | Production build |
 | `pnpm test` | 46 unit tests (Vitest): checkout state machine, merge policy, idempotent checkout, cart view, money |
-| `pnpm e2e` | 17 Playwright flows against a production build (every scenario below) |
+| `pnpm e2e` | 19 Playwright flows against a production build: every scenario below, plus the shell smoke test |
 | `pnpm check` | Typecheck, lint and unit tests |
 
 Playwright needs a Chromium. Run `pnpm exec playwright install chromium`, or point `PLAYWRIGHT_CHROMIUM_PATH` at one you already have.
@@ -46,6 +46,7 @@ Everything is driven from the **Mock API** button in the header. Its **Demo data
 | **Two tabs** | Start a checkout on Slow 3G, then open `/cart/checkout` in a second tab. Both show the same truth, and there are still only 3 orders. |
 | **Order never confirmed** | `POST /api/checkout` → **Fail always** + **Order placed, reply lost**. The order shows "We're still checking 1 order" and stays locked. Set it back to **Works** and it settles by itself (or press **Check now**). |
 | Offline | **Simulate offline**. |
+| Slow first load | Network speed **Very slow**, then reload `/cart`: after 3 s the skeleton says it's still loading. |
 | Different payment method per order | In the review step, pick **Pay at the clinic** for any order. |
 
 `GET /api/demo/orders` lists every order the server accepted. It's how the tests prove nothing was duplicated.
@@ -67,6 +68,19 @@ Everything is driven from the **Mock API** button in the header. Its **Demo data
 | 9 | Loading, empty, slow, offline; keyboard; focus on removal and step changes | [States](#states), [Accessibility](#accessibility) |
 
 ---
+
+## Stack and why
+
+| Concern | Choice | Why |
+| --- | --- | --- |
+| Framework | **Next.js 16** (App Router), React 19, TypeScript | MedEx's stack. Route handlers make the mock API, idempotency records included, with no extra tooling. |
+| UI | **shadcn/ui** on Radix + **Tailwind CSS 4** | Accessible primitives (dialogs, focus trapping, radio groups) whose code we own. |
+| Server state | **TanStack Query** | The cart cache, retries and offline pausing; every write goes through one place that only lets a newer revision in. |
+| Client state | **Zustand**: cart edits, cart session, checkout session | Read and written outside React by the sync engine and the checkout runner. The sessions persist, so a reload or a closed tab picks up where it was. |
+| Forms | **React Hook Form** + **Zod** | The review step's payment choices are a form, submitted once. Zod also parses API responses leniently at the boundary. |
+| Money | **big.js** | Exact decimals, multiplied and summed per currency, never across. |
+| Tabs | **Web Locks API** | One tab drives a checkout; the others follow its writes. |
+| Tests | **Vitest**, **Playwright** | Unit tests for the state machine, merge policy and idempotent checkout; browser tests for every scenario, checked against the server's order list. |
 
 ## Architecture
 
@@ -93,7 +107,7 @@ hooks/use-checkout-runner.ts  drives the machine: submit one at a time, poll, re
 
 | State | Lives in | Why |
 | --- | --- | --- |
-| The account cart | **TanStack Query** cache, keyed `["cart"]` | Server state. Every response carries a `revision`; an older one never overwrites a newer one. |
+| The account cart | **TanStack Query** cache, keyed `["cart"]` | Server state. Every cart response carries a `revision`; an older one never overwrites a newer one. |
 | Unsaved edits (quantity, duration, removal) | **Zustand** `cart-edits` | Read and written outside React by the sync engine; the UI renders server state + edits. |
 | Guest device cart, signed-in flag, merge result | **Zustand** `cart-session`, persisted | A real logged-out cart lives on the device. Cleared only after the merge succeeds. |
 | Checkout in progress | **Zustand** `checkout-session`, persisted | Must survive reloads and closed tabs, and be written *before* a request goes out. Other tabs follow its writes (`storage` event); a per-order `rev` keeps the newer state. |
@@ -103,7 +117,7 @@ hooks/use-checkout-runner.ts  drives the machine: submit one at a time, poll, re
 
 ## The checkout state machine
 
-There is one machine per order, implemented as a pure reducer in `domain/checkout-machine.ts` and covered by 8 unit tests. Events that don't apply in the current state are ignored. That's what makes a double click, or a late response for an already-settled order, harmless.
+There is one machine per order, implemented as a pure reducer in `domain/checkout-machine.ts` and covered by 9 unit tests. Events that don't apply in the current state are ignored. That's what makes a double click, or a late response for an already-settled order, harmless.
 
 ```mermaid
 stateDiagram-v2
@@ -111,8 +125,8 @@ stateDiagram-v2
     queued --> submitting: submit
     submitting --> awaiting_payment: 201, card, status pending
     submitting --> confirmed: 201 paid, or pay at clinic
-    submitting --> declined: 402
-    submitting --> conflict: 409 (cart changed)
+    submitting --> declined: 402, or 201 with status failed
+    submitting --> conflict: 400, 404, 409 or 422 (can't be placed as it is)
     submitting --> unknown: 5xx, network, timeout, offline
     unknown --> submitting: re-ask with the SAME key (automatically, backing off; or "Check now")
     awaiting_payment --> confirmed: order paid
@@ -120,6 +134,7 @@ stateDiagram-v2
     declined --> queued: try again / pay at clinic instead (NEW key)
     confirmed --> [*]
     conflict --> [*]: review the cart
+    declined --> [*]: Done (nothing was charged)
 ```
 
 | State | What the customer reads |
@@ -133,7 +148,7 @@ stateDiagram-v2
 | `conflict` | "Not placed · The quantity of … changed. Nothing was charged." Button: **Review in your cart** |
 | `unknown` | "Not confirmed yet · We lost touch with our server before it confirmed this order, so it may or may not have gone through. We're checking again automatically… **you won't be charged twice**." Headline: "We're still checking 1 order". **Not an outcome:** the cart lines stay locked and there's no "Done" until it settles. |
 
-Orders are submitted **one at a time**, so the customer reads "Placing 2 of 3". A failed order doesn't stop the ones after it. They're independent bookings.
+Orders are submitted **one at a time**, in order, and each order's card shows how it's going. (Re-asking about an unconfirmed order can overlap with the next order's request.) A failed order doesn't stop the ones after it. They're independent bookings.
 
 The results heading summarises the outcome: "2 of 3 orders placed". Each order's card says what happened to it and what to do next.
 
@@ -179,7 +194,7 @@ The e2e tests prove the hard cases against the server's order list:
 
 - **Instant on screen.** A tap updates the *wanted* value right away. The screen shows server state plus unsaved edits.
 - **One request per line at a time.** Taps made while a request is in flight just update the wanted value. When the request returns, the loop sends the latest value if it differs.
-  - Five quick taps from 3 make at most two requests and end at 8.
+  - Five quick taps from 3 end at 8. If they all land while the first request is out, that's two requests in all.
   - Requests for a line never overlap, so they can't arrive out of order.
 - **No flicker.** An intermediate response (say, "4") never replaces the 8 on screen while a newer edit is pending. The e2e test records every value the counter ever shows and asserts it only goes up.
 - **Newest server state wins, by revision.** Every cart response has a `revision`. A response older than the cached cart is ignored, so a slow GET, or a PATCH for another line, can't regress anything.
@@ -194,7 +209,7 @@ The e2e tests prove the hard cases against the server's order list:
 
 - **Wellness price.** A wellness price is `null` until a duration is chosen: never 0.
   - The line shows "Price not set yet".
-  - The group subtotal says "+ 1 item without a price yet".
+  - The group subtotal says "+ 1 item without a price yet" (without the "+" when nothing in the group has a price).
   - The summary says the order "needs a duration".
   - The group's checkout is blocked with the reason.
 - **Unavailable items.** Lines whose `product` is `{}` are "no longer available". They're shown in their own group, excluded from every order and total, and removable.
@@ -214,13 +229,26 @@ The e2e tests prove the hard cases against the server's order list:
 | A product the catalog doesn't have | Skipped | `not_available` |
 | *(not in the fixture)* Both chose different durations | Keep the account's choice; say which one was ignored | `duration_kept` |
 | *(not in the fixture)* Quantity above the limit | Capped | `quantity_limited` |
-| Same or smaller quantity on the device | Unchanged | `already_in_cart` (folded into another sentence when one exists) |
+| Same or smaller quantity on the device | Unchanged | `already_in_cart` (not shown when something more useful is said about the same product) |
 
 Because "keep the larger" is idempotent, **retrying a merge changes nothing**. The merge also carries an idempotency key per sign-in attempt, and the server replays the first response. A retried sign-in therefore still reports what was actually added, not "already in your cart".
 
 The device cart is cleared only after the merge succeeds; if it fails, the customer is still signed out with nothing lost.
 
 The customer sees one sentence per change, shown once after signing in. For example: "Liver Function Profile: your account had 2 and this device had more, so we kept 3. We don't add the two together, so nothing is booked twice."
+
+Each entry in `changes` is one of these (`server/cart/merge.ts`), designed to read as one plain sentence:
+
+```ts
+type MergeChange =
+  | { kind: "added"; productId: string; title: string; quantity: number; durationMinutes: number | null }
+  | { kind: "quantity_raised"; productId: string; title: string; from: number; to: number }
+  | { kind: "already_in_cart"; productId: string; title: string; quantity: number; deviceQuantity: number }
+  | { kind: "duration_applied"; productId: string; title: string; durationMinutes: number }
+  | { kind: "duration_kept"; productId: string; title: string; keptMinutes: number; deviceMinutes: number }
+  | { kind: "quantity_limited"; productId: string; title: string; requested: number; to: number }
+  | { kind: "not_available"; productId: string; quantity: number };
+```
 
 ## Explaining several orders to a non-technical customer
 
@@ -256,24 +284,26 @@ The customer sees one sentence per change, shown once after signing in. For exam
 
 The new **"Fail 2nd call"** mode in the panel reproduces "the second of three orders fails" exactly.
 
+**Slowing one call down.** The panel's network speed applies to every call. To slow just one, add `?_latency=3000` to it or send the `x-mock-latency` header. Some endpoints also offer **Timeout** or **reply lost**, which hold one call until the browser gives up.
+
 ## What I found in the data
 
 - **A cart line whose `product` is `{}`** (the server's `unknown` group): shown as unavailable and removable.
 - **A guest-cart product id that isn't in the catalog** (`6b572fa4…`): skipped on merge and reported. The device-cart view also marks it before sign-in.
 - **The overlaps between the guest and account carts**: the merge table above.
 - **`itemCount` and `unpricedItems` count quantities, not lines** (the brief says so for `itemCount`). The client counts the same way.
-- **The cart response doesn't say which wellness duration a line has**, but PATCH lets you set one, so the response needs it. I added `wellnessPricingId` per line, and a `revision` to order responses.
+- **The cart response doesn't say which wellness duration a line has**, but PATCH lets you set one, so the response needs it. I added `wellnessPricingId` per line, and a `revision` to cart responses.
 
 ## States
 
-- **Loading:** skeletons shaped like the cart.
+- **Loading:** skeletons shaped like the cart. After 3 s they add "Still loading your cart…"; offline, they say straight away that it will load once the connection is back.
 - **Empty:** "Your cart is empty" plus a few services to add.
-- **Load error:** a message and a Retry button ("Your cart is safe").
+- **Load error:** a message and a **Try again** button ("Your cart is safe").
 - **Slow:** quantity changes don't wait (optimistic), with a quiet "Saving…" per line. Checkout shows each order's live status and says the page can be left.
 - **Offline:**
   - the site banner appears;
   - the cart stays readable;
-  - steppers, durations and removal are disabled;
+  - steppers, durations and removal (unavailable items included) are disabled;
   - checkout is disabled with "You're offline. Your cart is saved; reconnect to check out.";
   - an in-progress checkout pauses and resumes by itself.
 
@@ -304,6 +334,9 @@ The new **"Fail 2nd call"** mode in the panel reproduces "the second of three or
 - **Real payment flows:** 3-D Secure redirects (a `requires_action` state), and payment provider webhooks instead of polling.
 - **Undo for removal** (needs a re-add endpoint), and a provider grouping inside each order.
 - **A screen-reader pass** with NVDA or VoiceOver, plus axe checks in the e2e suite.
+- **An orders page.** After a checkout, its results screen is the only place the orders are listed, and starting another checkout replaces it. That shows after a 409 ("the cart changed"): the customer reviews the cart and checks that order out again, and the earlier results screen goes. The orders themselves are safe on the server.
+- **Per-call latency in the Mock API panel.** Network speed applies to every call; one call can be slowed with `?_latency=` or the `x-mock-latency` header.
+- **A 402 on a pay-at-clinic order** (only possible by injecting one) still reads as a declined card.
 - **Persisting unsaved edits across a reload.** Today a reload drops edits that hadn't reached the server yet; the cart then shows what the server has.
 
 ## Tests
@@ -315,8 +348,19 @@ The new **"Fail 2nd call"** mode in the panel reproduces "the second of three or
   - cart view (unknown prices never 0, per-currency subtotals, edits, locks);
   - merge copy;
   - money.
-- **E2E (17):** [`e2e/cart.spec.ts`](e2e/cart.spec.ts) covers every scenario in the table at the top, against a production build, checking the server's order list for duplicates. Plus a shell smoke test.
+- **E2E (18, plus the shell smoke test):** [`e2e/cart.spec.ts`](e2e/cart.spec.ts) covers every scenario in the table at the top, against a production build, checking the server's order list for duplicates.
   - Five of them are regression tests for issues found in a code review: an unconfirmed order shown as "not placed", a second tab contradicting the first, checkout stalling when leaving the cart, a stale results page, and a removal lost behind a failed save.
+  - Two come from the final check below: offline, and focus after removing an item from the device's cart.
+
+### Found in a final check against the brief
+
+Before submitting, the app was checked line by line against the brief (an agent per exercise, each finding then verified by hand). Fixed:
+
+- **Removing an item from the device's cart dropped keyboard focus** to the page. It now moves to the next item, as in the account's cart (e2e test).
+- **A slow first load was a silent skeleton.** It now says it's still loading, or that the device is offline (e2e test).
+- **Offline, an unavailable item's Remove button still worked**, and then failed. It's disabled like every other change.
+- **Extra-small buttons were 24 px on touch screens, and focus rings on native controls were about 2:1.** They're now 44 px and at least 3:1 (shared foundation).
+- **This README:** statements that had drifted from the code, the shape of `changes`, and transitions missing from the state diagram.
 
 ## AI tools
 
@@ -327,7 +371,8 @@ This exercise was built with **Claude Code** (Anthropic's AI coding agent) worki
   - designed and implemented the mock API, state machine, sync engine and UI;
   - wrote the unit and e2e tests;
   - drove a headless browser to check each state;
-  - drafted this README.
+  - drafted this README;
+  - checked the finished app against the brief and fixed what it found ([Found in a final check against the brief](#found-in-a-final-check-against-the-brief)).
 - **A second agent** reviewed the code adversarially. It found no way to double-charge, but did find 11 issues where the UI could mislead or an edit could be lost. All were verified and fixed, most with a regression test. That included the multi-tab coordination and the "still checking" state.
 
 <!-- TODO(author): before submitting, describe your own review, the changes you made, and anything you'd decide differently. You'll be asked to explain and extend this code live. -->
