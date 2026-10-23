@@ -121,35 +121,38 @@ function Clock({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-start gap-3 rounded-xl border p-4",
+        "@container min-w-0 rounded-xl border p-4",
         tone === "provider" ? "border-primary/40 bg-accent/60" : "bg-card",
       )}
     >
-      <span
-        className={cn(
-          "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full",
-          tone === "provider" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-        )}
-      >
-        {icon}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium">{label}</span>
-        {ready ? (
-          <span className="flex flex-wrap items-baseline gap-x-2">
-            <time className="font-heading text-2xl font-semibold tabular-nums" dateTime={new Date(at).toISOString()}>
-              {formatClock(wall.minutes)}
-            </time>
-            <span className="text-sm text-muted-foreground">
-              {formatPlainDate(wall.date)} · {formatOffset(offsetMinutes(zone, at))}
+      {/* A narrow card puts the action under the time, so the place name and the time keep their room */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 @[19rem]:grid-cols-[auto_minmax(0,1fr)_auto]">
+        <span
+          className={cn(
+            "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full",
+            tone === "provider" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+          )}
+        >
+          {icon}
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-medium">{label}</span>
+          {ready ? (
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <time className="font-heading text-2xl font-semibold tabular-nums" dateTime={new Date(at).toISOString()}>
+                {formatClock(wall.minutes)}
+              </time>
+              <span className="text-sm text-muted-foreground">
+                {formatPlainDate(wall.date)} · {formatOffset(offsetMinutes(zone, at))}
+              </span>
             </span>
-          </span>
-        ) : (
-          <Skeleton className="my-1 h-7 w-40" />
-        )}
-        <span className="text-xs text-muted-foreground">{footnote}</span>
+          ) : (
+            <Skeleton className="my-1 h-7 w-40" />
+          )}
+          <span className="text-xs text-muted-foreground">{footnote}</span>
+        </div>
+        {action && <div className="col-start-2 -ml-2.5 @[19rem]:col-start-auto @[19rem]:ml-0">{action}</div>}
       </div>
-      {action}
     </div>
   );
 }
