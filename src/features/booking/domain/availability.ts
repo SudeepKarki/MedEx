@@ -90,10 +90,11 @@ export function describeDay(input: DayInput): { status: DayStatus; specialists: 
     const plan = planSlots(specialist.consultation, closure ? null : opening);
     const stateOf = (slot: PlannedSlot): SlotState => {
       const key = slotKey(specialist.id, slot.startMinutes);
-      if (currentKeys.has(key)) return "current";
+      // A slot that has started (by the provider's clock) can't be booked, even one of your own
+      const started = compareDates(date, now.today) < 0 || (isToday && slot.startMinutes <= now.minutes);
+      if (currentKeys.has(key)) return started ? "started" : "current";
       if (input.booked.has(key)) return "booked";
-      // A slot that has started (by the provider's clock) can't be booked
-      if (compareDates(date, now.today) < 0 || (isToday && slot.startMinutes <= now.minutes)) return "started";
+      if (started) return "started";
       return "free";
     };
     const states = new Map(plan.offered.map((s) => [s.index, stateOf(s)]));
@@ -168,7 +169,7 @@ export function statusLabel(status: DayStatus): string {
     case "closed":
       return `Closed on ${status.weekday}s`;
     case "specialist-off":
-      return "No consultation hours";
+      return "Outside opening hours";
     case "day-over":
       return "No times left today";
     case "fully-booked":

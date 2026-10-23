@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "@playwright/test";
 import { setMockControls } from "./helpers";
 
 // One shared in-memory booking store on the mock server: run these one at a time.
@@ -168,6 +168,9 @@ test("a specialist whose hours run past closing: only the overlap is offered, an
   // Nothing at or after 8:00 PM (Riverside's latest closing)
   await expect(page.getByRole("option", { name: /^8:\d\d PM Thailand/ })).toHaveCount(0);
   await expect(page.getByRole("option", { name: /^7:40 PM Thailand/ })).toHaveCount(1); // the last that ends by 8
+  // Fridays close at 5 PM, before Dr. Rana starts: the calendar says why, not just "no times"
+  const friday = page.getByRole("gridcell", { name: /^Friday, .*Outside opening hours$/ }).first();
+  await expect(friday).toHaveAttribute("title", /on Fridays the provider is only open 8:00 AM – 5:00 PM/);
 });
 
 test("a group of 3 can only start where 3 times in a row are free", async ({ page }) => {
@@ -313,5 +316,20 @@ test.describe("a customer in Bangkok booking late evening in India", () => {
       /12:30 AM, \w{3} \d{1,2} \w{3} your time in Bangkok/,
     );
     await expect(page.getByText("next day").first()).toBeVisible();
+  });
+});
+
+// Here rather than in the mobile project: every test in this file shares the mock server's one booking store
+test.describe("on a phone", () => {
+  const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices["Pixel 7"];
+  test.use({ viewport, userAgent, deviceScaleFactor, isMobile, hasTouch });
+
+  test("booking on a phone: no sideways scrolling, and the whole flow works", async ({ page }) => {
+    await page.goto(`/book/${RIVERSIDE}`);
+    await freeOption(page).first().click();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(width).toBeLessThanOrEqual(0);
+    await page.getByRole("button", { name: /^Book / }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "You're booked" })).toBeVisible();
   });
 });
