@@ -51,7 +51,7 @@ describe("facet counts", () => {
         );
       }
     }
-    for (const providerId of [48, 46, 61, 105, 130, 146]) {
+    for (const { id: providerId } of catalog.providerList) {
       expect(facets.providers.get(providerId) ?? 0, `provider ${providerId}`).toBe(
         view({ ...filters, providers: [providerId] }).totalServices,
       );
@@ -270,6 +270,8 @@ describe("search", () => {
     const a = view({ q: "check-up" }).totalServices;
     expect(a).toBeGreaterThan(0);
     expect(view({ q: "checkup" }).totalServices).toBe(a);
+    // The "Health Check Up" category is written as two words
+    expect(view({ q: "check up" }).totalServices).toBe(a);
   });
 
   it("matches word prefixes, not arbitrary substrings", () => {

@@ -1,10 +1,19 @@
-import { formatMoney, type CurrencyCode } from "@/lib/money";
+import { formatMoney, roundHalfUp, type CurrencyCode } from "@/lib/money";
 import type { PriceQuote } from "../domain/types";
 
+/**
+ * The badge beside the struck-through price, which must agree with the two prices on
+ * screen. "30% off" when they are 30% apart; with a fixed service charge they aren't,
+ * so it says what they differ by instead.
+ */
 export function discountLabel(quote: PriceQuote, currency: CurrencyCode): string | null {
-  if (!quote.discount) return null;
-  if (quote.discount.kind === "percent") return `${quote.discount.percent.toString()}% off`;
-  return `${formatMoney(quote.discountAmount, currency)} off`;
+  const { discount, withoutDiscount, final } = quote;
+  if (!discount) return null;
+  const saved = withoutDiscount.minus(final);
+  if (discount.kind === "percent" && saved.times(100).eq(withoutDiscount.times(discount.percent))) {
+    return `${discount.percent.toString()}% off`;
+  }
+  return `${formatMoney(roundHalfUp(withoutDiscount).minus(roundHalfUp(final)), currency)} off`;
 }
 
 export function durationLabel(minutes: number | null): string {
