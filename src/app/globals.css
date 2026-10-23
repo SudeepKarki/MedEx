@@ -211,10 +211,10 @@
   outline: none;
 }
 .dual-range:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--ring) 50%, transparent);
+  box-shadow: 0 0 0 4px var(--ring);
 }
 .dual-range:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--ring) 50%, transparent);
+  box-shadow: 0 0 0 4px var(--ring);
 }
 @media (pointer: coarse) {
   .dual-range::-webkit-slider-thumb {
