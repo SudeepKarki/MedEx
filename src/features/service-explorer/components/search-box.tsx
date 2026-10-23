@@ -45,7 +45,7 @@ export function SearchBox({
         maxLength={MAX_QUERY_LENGTH}
         spellCheck={false}
         enterKeyHint="search"
-        className="h-12 w-full rounded-xl border border-input bg-card pr-12 pl-12 text-base shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
+        className="h-12 w-full rounded-xl border border-brand/70 bg-card pr-12 pl-12 text-base shadow-card outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <Button

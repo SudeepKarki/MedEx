@@ -87,7 +87,7 @@ export function OrderStatusCard({
   return (
     <article
       aria-labelledby={`order-${group.groupType}`}
-      className="flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-xs"
+      className="flex flex-col gap-3 rounded-xl border bg-card p-5 shadow-card"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>

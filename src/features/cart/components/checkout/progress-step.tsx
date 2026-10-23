@@ -44,7 +44,7 @@ export function ProgressStep({ session }: { session: CheckoutSession }) {
   return (
     <div className="flex flex-col gap-6">
       <CheckoutSteps current={active ? 1 : 2} />
-      <div className="flex flex-col gap-2">
+      <div className="heading-accent flex flex-col gap-2">
         <h1
           ref={headingRef}
           tabIndex={-1}

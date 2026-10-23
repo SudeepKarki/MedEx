@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
 
 // Pairs chosen for ≥ 4.5:1 text contrast in both themes.
+// Hues from medex.co's palette (plum, magenta, violet, orange) plus two calm neutrals of it.
 const PALETTE = [
-  "bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-200",
-  "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
-  "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
-  "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200",
+  "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
+  "bg-fuchsia-100 text-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200",
+  "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
   "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200",
+  "bg-pink-100 text-pink-900 dark:bg-pink-950 dark:text-pink-200",
+  "bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-200",
 ];
 
 export function ProviderAvatar({

@@ -47,7 +47,7 @@ export function ProviderCard({
   return (
     <article
       aria-labelledby={headingId}
-      className="flex flex-col rounded-xl border bg-card text-card-foreground shadow-xs"
+      className="flex flex-col rounded-xl border bg-card text-card-foreground shadow-card"
     >
       <header className="flex flex-col gap-1.5 p-4 pb-2 sm:p-5 sm:pb-2">
         <div className="flex items-center gap-3">

@@ -7,9 +7,14 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-figtree);
+  --font-sans: var(--font-manrope);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-figtree);
+  --font-heading: var(--font-manrope);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-muted: var(--highlight-muted);
+  --color-notify: var(--notify);
   --color-success: var(--success);
   --color-success-muted: var(--success-muted);
   --color-warning: var(--warning);
@@ -52,29 +57,44 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --shadow-card: 0 1px 2px rgb(60 20 70 / 0.04), 0 8px 24px -12px rgb(60 20 70 / 0.12);
+  --shadow-card-hover: 0 2px 4px rgb(60 20 70 / 0.05), 0 20px 40px -16px rgb(60 20 70 / 0.22);
 }
 
 /*
- * MedEx theme. Healthcare UI: calm teal primary, slate neutrals, high contrast.
+ * MedEx theme, taken from medex.co: plum purple (#862888) as the primary, magenta
+ * (#b82ea2) for focus and accents, the pink-to-violet brand gradient for the header,
+ * and orange-red for listing prices. Manrope is the site's typeface.
  * Every foreground/background pair used for text meets WCAG AA (4.5:1):
- *   primary (cyan-700) on white 5.4:1 · muted-foreground (slate-600) on white 7.6:1
- *   success (emerald-700) on white 5.5:1 · warning-foreground (amber-800) on amber-50 7:1
+ *   primary on white 7.9:1 · muted-foreground on white 6.8:1, on muted 6:1
+ *   highlight on white 5:1 · accent-foreground on accent 7.7:1 · white on every gradient stop ≥ 5.4:1
  */
 :root {
-  --background: oklch(0.984 0.003 247.858); /* slate-50 */
-  --foreground: oklch(0.208 0.042 265.755); /* slate-900 */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-  --primary: oklch(0.52 0.105 223.128); /* cyan-700 */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.968 0.007 247.896); /* slate-100 */
-  --secondary-foreground: oklch(0.279 0.041 260.031);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.446 0.043 257.281); /* slate-600 */
-  --accent: oklch(0.956 0.045 203.388); /* cyan-100 */
-  --accent-foreground: oklch(0.45 0.085 224.283); /* cyan-800 */
+  --background: #f9f7fa; /* medex.co's warm off-white, a touch of lavender */
+  --foreground: #22252c;
+  --card: #ffffff;
+  --card-foreground: #22252c;
+  --popover: #ffffff;
+  --popover-foreground: #22252c;
+  --primary: #862888; /* medex.co brand purple */
+  --primary-foreground: #ffffff;
+  --secondary: #f3eff4;
+  --secondary-foreground: #3b2d3f;
+  --muted: #f3eff4;
+  --muted-foreground: #5f5866;
+  --accent: #f9ecf8; /* medex.co's #fff3ff tint, deep enough to see on white */
+  --accent-foreground: #7a2380;
+  --brand: #b82ea2; /* medex.co magenta: outlines, focus, accents */
+  --brand-foreground: #ffffff;
+  --brand-gradient: linear-gradient(90deg, #b42fa3 0%, #8c2a93 48%, #6a1fb8 100%);
+  --brand-text-gradient: linear-gradient(90deg, #b42fa3 0%, #862888 55%, #6a1fb8 100%);
+  --brand-gradient-soft:
+    radial-gradient(60rem 28rem at 100% 0%, rgb(184 46 162 / 0.14), transparent 60%),
+    radial-gradient(40rem 24rem at 0% 100%, rgb(239 70 38 / 0.07), transparent 60%),
+    linear-gradient(135deg, #f8f1f9 0%, #ffffff 70%);
+  --highlight: #cf3818; /* medex.co's #ef4626 price colour, darkened to 5:1 */
+  --highlight-muted: #fdeee9;
+  --notify: #cf3818; /* count badges on the header gradient; white text 5:1 in both themes */
   --destructive: oklch(0.577 0.245 27.325);
   --success: oklch(0.508 0.118 165.612); /* emerald-700 */
   --success-muted: oklch(0.979 0.021 166.113);
@@ -82,40 +102,50 @@
   --warning-muted: oklch(0.987 0.022 95.277); /* amber-50 */
   --warning-foreground: oklch(0.473 0.137 46.201); /* amber-800 */
   --rating: oklch(0.769 0.188 70.08);
-  --border: oklch(0.929 0.013 255.508); /* slate-200 */
-  --input: oklch(0.869 0.022 252.894); /* slate-300: inputs need 3:1 against bg */
-  --ring: oklch(0.609 0.126 221.723); /* cyan-600 */
-  --chart-1: oklch(0.52 0.105 223.128);
-  --chart-2: oklch(0.789 0.154 211.53);
-  --chart-3: oklch(0.869 0.022 252.894);
-  --chart-4: oklch(0.446 0.043 257.281);
-  --chart-5: oklch(0.279 0.041 260.031);
+  --border: #ebe4ec;
+  --input: #958a99; /* form controls need 3:1 against the page (3.1:1) */
+  --ring: #b82ea2;
+  --chart-1: #862888;
+  --chart-2: #b82ea2;
+  --chart-3: #e6c3e2;
+  --chart-4: #5f5866;
+  --chart-5: #3b2d3f;
   --radius: 0.625rem;
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-primary: oklch(0.52 0.105 223.128);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.279 0.041 260.031);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.609 0.126 221.723);
+  --sidebar: #f9f7fa;
+  --sidebar-foreground: #22252c;
+  --sidebar-primary: #862888;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3eff4;
+  --sidebar-accent-foreground: #3b2d3f;
+  --sidebar-border: #ebe4ec;
+  --sidebar-ring: #b82ea2;
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695); /* slate-950 */
-  --foreground: oklch(0.968 0.007 247.896);
-  --card: oklch(0.208 0.042 265.755); /* slate-900 */
-  --card-foreground: oklch(0.968 0.007 247.896);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.968 0.007 247.896);
-  --primary: oklch(0.789 0.154 211.53); /* cyan-400 */
-  --primary-foreground: oklch(0.129 0.042 264.695);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.968 0.007 247.896);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788); /* slate-400 */
-  --accent: oklch(0.3 0.05 223);
-  --accent-foreground: oklch(0.865 0.127 207.078);
+  --background: #160f18;
+  --foreground: #f6f1f7;
+  --card: #201722;
+  --card-foreground: #f6f1f7;
+  --popover: #201722;
+  --popover-foreground: #f6f1f7;
+  --primary: #e28bd8; /* orchid: the brand purple lifted for dark surfaces */
+  --primary-foreground: #2a0d2c;
+  --secondary: #2a202d;
+  --secondary-foreground: #f6f1f7;
+  --muted: #2a202d;
+  --muted-foreground: #b9adbc;
+  --accent: #3a2140;
+  --accent-foreground: #f0c4ea;
+  --brand: #d566c8;
+  --brand-foreground: #2a0d2c;
+  --brand-gradient: linear-gradient(90deg, #7a2a78 0%, #5c1f63 48%, #3f1a6e 100%);
+  --brand-text-gradient: linear-gradient(90deg, #f3aee9 0%, #e28bd8 55%, #c7a6ff 100%);
+  --brand-gradient-soft:
+    radial-gradient(60rem 28rem at 100% 0%, rgb(184 46 162 / 0.22), transparent 60%),
+    radial-gradient(40rem 24rem at 0% 100%, rgb(239 70 38 / 0.08), transparent 60%),
+    linear-gradient(135deg, #24152a 0%, #160f18 70%);
+  --highlight: #ff8a66;
+  --highlight-muted: #3b1d17;
   --destructive: oklch(0.704 0.191 22.216);
   --success: oklch(0.765 0.177 163.223); /* emerald-400 */
   --success-muted: oklch(0.262 0.051 172.552);
@@ -124,21 +154,57 @@
   --warning-foreground: oklch(0.924 0.12 95.746);
   --rating: oklch(0.828 0.189 84.429);
   --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 20%);
-  --ring: oklch(0.715 0.143 215.221);
-  --chart-1: oklch(0.789 0.154 211.53);
-  --chart-2: oklch(0.52 0.105 223.128);
-  --chart-3: oklch(0.372 0.044 257.287);
-  --chart-4: oklch(0.704 0.04 256.788);
-  --chart-5: oklch(0.929 0.013 255.508);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.968 0.007 247.896);
-  --sidebar-primary: oklch(0.789 0.154 211.53);
-  --sidebar-primary-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.968 0.007 247.896);
+  --input: oklch(1 0 0 / 34%); /* form controls need 3:1 against the page and cards (3.1:1) */
+  --ring: #d566c8;
+  --chart-1: #e28bd8;
+  --chart-2: #b82ea2;
+  --chart-3: #5c1f63;
+  --chart-4: #b9adbc;
+  --chart-5: #ebe4ec;
+  --sidebar: #201722;
+  --sidebar-foreground: #f6f1f7;
+  --sidebar-primary: #e28bd8;
+  --sidebar-primary-foreground: #2a0d2c;
+  --sidebar-accent: #2a202d;
+  --sidebar-accent-foreground: #f6f1f7;
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.715 0.143 215.221);
+  --sidebar-ring: #d566c8;
+}
+
+/* Every page lines up with the header: one width, one gutter. */
+@utility page-container {
+  @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+}
+
+@utility bg-brand-gradient {
+  background-image: var(--brand-gradient);
+}
+
+/* Gradient-filled text for a hero phrase; its own stops so it stays readable in dark mode */
+@utility gradient-text {
+  background-image: var(--brand-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-brand-soft {
+  background-image: var(--brand-gradient-soft);
+}
+
+/* medex.co's section titles: a short gradient bar to the left of the heading */
+@utility heading-accent {
+  position: relative;
+  padding-inline-start: 0.875rem;
+  &::before {
+    content: "";
+    position: absolute;
+    inset-block: 0.18em;
+    inset-inline-start: 0;
+    width: 0.25rem;
+    border-radius: 9999px;
+    background-image: linear-gradient(180deg, var(--brand), var(--primary));
+  }
 }
 
 @layer base {
@@ -160,6 +226,12 @@
   /* Counts and prices change while filtering; fixed-width digits stop labels jittering */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (forced-colors: active) {
+  .gradient-text {
+    color: CanvasText;
   }
 }
 

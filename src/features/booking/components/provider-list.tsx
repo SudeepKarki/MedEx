@@ -27,8 +27,8 @@ export function ProviderList() {
   const at = minute * 60_000;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
-      <header className="flex flex-col gap-2">
+    <div className="page-container flex flex-col gap-6 py-6 lg:py-8">
+      <header className="heading-accent flex flex-col gap-2">
         <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">Book an appointment</h1>
         <p className="max-w-2xl text-muted-foreground">
           Choose where you&apos;d like to go. Times are always shown on the clock at the provider, with your own time
@@ -51,7 +51,7 @@ export function ProviderList() {
       {providers.isError ? (
         <InlineError error={providers.error} onRetry={() => providers.refetch()} retrying={providers.isFetching} what="the providers" />
       ) : !providers.data ? (
-        <ul className="grid gap-3 sm:grid-cols-2" aria-label="Loading providers" aria-busy>
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Loading providers" aria-busy>
           {Array.from({ length: 6 }, (_, i) => (
             <li key={i}>
               <Skeleton className="h-36 rounded-xl" />
@@ -59,17 +59,17 @@ export function ProviderList() {
           ))}
         </ul>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {providers.data.map(({ provider }) => {
             const disclosure = at > 0 ? zoneDisclosure(provider.timeZone, provider.country, at) : null;
             return (
               <li key={provider.id}>
                 <Link
                   href={`/book/${provider.id}`}
-                  className="flex h-full flex-col gap-2 rounded-xl border bg-card p-4 transition-colors hover:border-primary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="flex h-full flex-col gap-2 rounded-xl border bg-card p-4 shadow-card transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-card-hover focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
                   <span className="flex items-start justify-between gap-3">
-                    <span className="font-medium">{provider.name}</span>
+                    <span className="font-semibold">{provider.name}</span>
                     {at > 0 && (
                       <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
                         {formatClock(toWallClock(provider.timeZone.zone, at).minutes)} there

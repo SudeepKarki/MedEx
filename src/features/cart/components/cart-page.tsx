@@ -57,8 +57,8 @@ export function CartPage() {
   const signedIn = useCartSession((s) => s.signedIn);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-8 pb-32 sm:px-6 lg:pb-8">
-      <div className="flex flex-col gap-1">
+    <div className="page-container flex flex-col gap-6 pt-6 pb-32 lg:pt-8 lg:pb-12">
+      <div className="heading-accent flex flex-col gap-1">
         <h1
           tabIndex={-1}
           data-focus-id="cart-heading"

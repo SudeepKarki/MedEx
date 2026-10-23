@@ -5,7 +5,7 @@ import { SlotsSkeleton } from "./slot-panel";
 /** The booking page's shape while the provider loads, so nothing jumps when it arrives. */
 export function BookingPageSkeleton() {
   return (
-    <div role="status" aria-label="Loading booking page" className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
+    <div role="status" aria-label="Loading booking page" className="page-container flex flex-col gap-6 py-6 lg:py-8">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-8 w-72" />
         <Skeleton className="h-5 w-96 max-w-full" />

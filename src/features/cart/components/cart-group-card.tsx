@@ -30,7 +30,7 @@ export function CartGroupCard({
     <section
       aria-labelledby={headingId}
       className={cn(
-        "flex flex-col rounded-xl border bg-card shadow-xs",
+        "flex flex-col rounded-xl border bg-card shadow-card",
         group.unavailable && "border-dashed bg-muted/40 shadow-none",
       )}
     >

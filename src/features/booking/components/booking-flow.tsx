@@ -174,7 +174,7 @@ export function BookingFlow({ data, mode, initial }: { data: ProviderData; mode:
   const dateHeading = date ? formatPlainDate(date, "long") : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
+    <div className="page-container flex flex-col gap-6 py-6 lg:py-8">
       <ProviderHeader
         provider={provider}
         title={booking ? "Move your appointment" : "Book an appointment"}

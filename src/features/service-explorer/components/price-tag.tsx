@@ -84,7 +84,13 @@ function QuoteAmount({ quote, currency }: { quote: PriceQuote; currency: Currenc
           </s>
         </span>
       )}
-      <span aria-hidden className={cn("text-base font-bold tabular-nums", free && "text-success")}>
+      <span
+        aria-hidden
+        className={cn(
+          "text-lg font-extrabold tabular-nums",
+          free ? "text-success" : "text-highlight",
+        )}
+      >
         {free ? "Free" : formatMoney(quote.final, currency)}
       </span>
     </span>

@@ -39,7 +39,7 @@ export function ProviderHeader({
   // The data has a country, not a city: the zone's city (e.g. Kathmandu) isn't where the provider is
   const country = provider.country ? (COUNTRY_NAMES[provider.country] ?? provider.country) : null;
   return (
-    <header className="flex flex-col gap-1.5">
+    <header className="heading-accent flex flex-col gap-1.5">
       {eyebrow && <p className="text-sm font-medium text-primary">{eyebrow}</p>}
       <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
       <p className="flex items-center gap-1.5 text-muted-foreground">
