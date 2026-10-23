@@ -1,14 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Manrope } from "next/font/google";
 import { LiveAnnouncer } from "@/components/app/live-announcer";
 import { AppProviders } from "@/components/app/providers";
+import { SiteFooter } from "@/components/app/site-footer";
 import { SiteHeader } from "@/components/app/site-header";
 import { SkipLink } from "@/components/app/skip-link";
 import { CheckoutRunner } from "@/features/cart/components/checkout-runner";
 import "./globals.css";
 
-const figtree = Figtree({
-  variable: "--font-figtree",
+// medex.co's typeface
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   display: "swap",
 });
@@ -25,8 +27,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#020618" },
+    { media: "(prefers-color-scheme: light)", color: "#9e2f9a" },
+    { media: "(prefers-color-scheme: dark)", color: "#5c1f63" },
   ],
 };
 
@@ -36,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${figtree.variable} ${geistMono.variable}`}
+      className={`${manrope.variable} ${geistMono.variable}`}
     >
       <body className="flex min-h-dvh flex-col antialiased">
         <AppProviders>
@@ -45,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
             {children}
           </main>
+          <SiteFooter />
           <LiveAnnouncer />
           {/* Keeps an in-progress checkout moving on every page */}
           <CheckoutRunner />

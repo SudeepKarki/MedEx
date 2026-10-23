@@ -55,7 +55,7 @@ export function BookingDetailsRoute() {
 
 export function BookingDetailsSkeleton() {
   return (
-    <div role="status" aria-label="Loading your booking" className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+    <div role="status" aria-label="Loading your booking" className="page-container flex flex-col gap-4 py-6 *:max-w-3xl lg:py-8">
       <Skeleton className="h-9 w-64" />
       <Skeleton className="h-24 rounded-xl" />
       <Skeleton className="h-56 rounded-2xl" />
@@ -80,8 +80,8 @@ function BookingDetails({
   const title = status === "booked" ? "You're booked" : status === "moved" ? "Your appointment has moved" : "Your appointment";
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
-      <header className="flex flex-col gap-2">
+    <div className="page-container flex flex-col gap-6 py-6 *:max-w-3xl lg:py-8">
+      <header className="heading-accent flex flex-col gap-2">
         {status && (
           <p className="flex items-center gap-2 font-medium text-success">
             <CheckCircle2Icon aria-hidden className="size-5" />

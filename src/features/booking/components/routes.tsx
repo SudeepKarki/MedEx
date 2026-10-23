@@ -74,7 +74,7 @@ export const isNotFound = (error: unknown) => isApiError(error) && error.status 
 
 export function NotFound({ title }: { title: string }) {
   return (
-    <div className="mx-auto flex max-w-xl flex-col items-start gap-4 px-4 py-16">
+    <div className="page-container flex flex-col items-start gap-4 py-16 *:max-w-xl">
       <h1 className="font-heading text-2xl font-semibold">{title}</h1>
       <p className="text-muted-foreground">The link may be old or mistyped.</p>
       <Button asChild>
@@ -86,7 +86,7 @@ export function NotFound({ title }: { title: string }) {
 
 export function PageError(props: { error: unknown; onRetry: () => void; retrying: boolean; what: string }) {
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-16">
+    <div className="page-container flex flex-col gap-4 py-16 *:max-w-xl">
       <h1 className="font-heading text-2xl font-semibold">Something went wrong</h1>
       <InlineError {...props} />
     </div>

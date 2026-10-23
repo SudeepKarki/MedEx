@@ -52,6 +52,22 @@ The exercises were built separately, so a few things collided once they shared o
 | Money | **big.js** | Exact decimal maths. Floats round 5970.605 down to .60. |
 | Tests | **Vitest + Testing Library**, Playwright | Fast unit tests for domain logic, plus browser tests for flows. |
 
+## Look and feel
+
+The app follows medex.co's design:
+
+- **Colours and type:** medex.co's plum purple (#862888) as the primary colour, magenta (#b82ea2) for focus rings and accents, the pink-to-violet gradient behind the header, and orange-red for listing prices, darkened to #cf3818 so it meets 4.5:1. The typeface is Manrope. A plum-black dark theme uses an orchid primary. The contrast ratio of every text pairing is noted in `globals.css`.
+- **One width:** every page lines up with the header (`page-container`). Narrow pages (checkout, booking details) keep a narrow column aligned to the same left edge.
+- **Landing page:** the three exercises, each with a photo from Unsplash (credited in the footer), served through `next/image`.
+- **What it costs:** the heavier styling (a wider typeface, larger prices, card shadows) adds rendering time. Task 1's budget still holds on this laptop, but on a slower CPU the first filter, which reveals the price controls, is slower than on the task branch:
+
+| Filter → results painted | 1× (this laptop) | 2× slower CPU | 4× slower CPU |
+| --- | --- | --- | --- |
+| `task-1-service-explorer` branch | 33–68 ms | 61–122 ms | 108–259 ms |
+| With this theme | 32–65 ms | 62–153 ms | 128–393 ms |
+
+Typing stays under 50 ms per keystroke at every speed, and CLS stays 0. Movement right after a click is 0.34 in raw layout-shift score (0.13 on the task branch). As there, it's cards changing height as the results change, and it isn't counted as CLS because it follows the click. Measured with `pnpm perf`, as described in Task 1's README.
+
 ## Shared foundation
 
 ```

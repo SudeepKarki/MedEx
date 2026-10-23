@@ -21,7 +21,7 @@ export function CartSummary({ groups }: { groups: readonly GroupView[] }) {
   return (
     <section
       aria-labelledby="summary-heading"
-      className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-xs"
+      className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-card"
     >
       <h2 id="summary-heading" className="font-heading text-lg font-semibold">
         Summary

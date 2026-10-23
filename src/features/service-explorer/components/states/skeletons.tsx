@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** Shaped like a real provider card with three services, so nothing jumps when data lands. */
 export function ProviderCardSkeleton() {
   return (
-    <div className="flex flex-col rounded-xl border bg-card shadow-xs" aria-hidden>
+    <div className="flex flex-col rounded-xl border bg-card shadow-card" aria-hidden>
       <div className="flex items-start gap-3 p-4 pb-2 sm:p-5 sm:pb-2">
         <Skeleton className="size-11 rounded-lg" />
         <div className="flex flex-1 flex-col gap-2 pt-0.5">

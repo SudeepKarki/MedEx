@@ -44,7 +44,7 @@ export function CompareTray({
       aria-label="Providers to compare"
       className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] backdrop-blur"
     >
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3 sm:px-6">
+      <div className="page-container flex flex-wrap items-center gap-2 py-3">
         <p className="text-sm font-medium">
           Compare <span className="tabular-nums">{ids.length}</span> of {MAX_COMPARE}
         </p>

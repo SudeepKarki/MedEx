@@ -46,7 +46,7 @@ export function FacetOption({ label, count, checked, onToggle, className }: Face
       <label
         htmlFor={id}
         className={cn(
-          "flex flex-1 cursor-pointer items-center justify-between gap-2 py-1.5 text-sm",
+          "flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 py-1.5 text-sm",
           disabled && "cursor-not-allowed text-muted-foreground",
         )}
       >

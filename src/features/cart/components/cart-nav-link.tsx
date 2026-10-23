@@ -22,12 +22,12 @@ export function CartNavLink() {
   return (
     <Link
       href="/cart"
-      className="relative inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="relative inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/90 transition-colors outline-none hover:bg-white/15 hover:text-white focus-visible:ring-3 focus-visible:ring-white/70 pointer-coarse:min-h-11"
     >
       <ShoppingCartIcon aria-hidden className="size-4" />
       Cart
       {count !== null && count > 0 && (
-        <span className="rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
+        <span className="min-w-5 rounded-full bg-notify px-1.5 text-center text-xs leading-5 font-bold text-white tabular-nums">
           {count}
           <span className="sr-only"> items</span>
         </span>

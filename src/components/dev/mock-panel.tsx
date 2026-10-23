@@ -57,7 +57,13 @@ export function MockPanel() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" aria-label="Open mock API controls">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Open mock API controls"
+          // A white pill on the header gradient, like medex.co's "Catalog" button
+          className="rounded-full border-transparent bg-white px-3 text-primary hover:border-transparent hover:bg-white/90 hover:text-primary focus-visible:border-white focus-visible:ring-white/50 aria-expanded:bg-white aria-expanded:text-primary dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 dark:hover:text-white"
+        >
           <FlaskConicalIcon aria-hidden />
           <span className="hidden sm:inline">Mock API</span>
           {isClient && activeCount > 0 && (

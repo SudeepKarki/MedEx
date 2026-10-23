@@ -98,7 +98,7 @@ export function ReviewStep() {
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="scroll-mt-32 font-heading text-2xl font-bold tracking-tight outline-none sm:text-3xl"
+          className="heading-accent scroll-mt-32 font-heading text-2xl font-bold tracking-tight outline-none sm:text-3xl"
         >
           {ready.length === 1 ? "Review your order" : `Review your ${ready.length} orders`}
         </h1>
@@ -198,7 +198,7 @@ function OrderReviewCard({
   return (
     <section
       aria-labelledby={`review-${group.type}`}
-      className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-xs"
+      className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-card"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

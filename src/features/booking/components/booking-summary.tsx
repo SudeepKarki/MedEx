@@ -81,7 +81,7 @@ export function BookingSummary({
             : null;
 
   return (
-    <section aria-labelledby="summary-heading" className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-xs">
+    <section aria-labelledby="summary-heading" className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-card">
       <h2 id="summary-heading" className="font-heading text-lg font-semibold">
         {move ? "Your change" : "Your appointment"}
       </h2>
