@@ -6,7 +6,7 @@ A date and time picker for booking an appointment with a provider in another tim
 
 **The answer to the customer's question, everywhere on the page:** every time is the provider's ("10:40 AM Thailand time"), because that's the clock the customer has to be there by. Their own time is shown under it, labelled "your time", with "next day" when it falls on a different date for them.
 
-> This is the README of the `task-3-booking-time-zones` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: the bookable-provider list is `GET /api/booking/providers` (`/api/providers` is Task 1's list), and **Reset demo bookings** is `POST /api/demo/reset?scope=booking`.
+> This is the README of the `task-3-booking-time-zones` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: the bookable-provider list is `GET /api/booking/providers` (`/api/providers` is Task 1's list), and **Reset demo bookings** is `POST /api/demo/reset?scope=booking`. Also, `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion.
 
 ---
 
@@ -22,7 +22,7 @@ You need Node 20.9+ and pnpm 10.
 | --- | --- |
 | `pnpm dev` | Dev server |
 | `pnpm build && pnpm start` | Production build |
-| `pnpm test` | 74 booking unit tests (Vitest): time zones, slot rule, availability, two clocks, group runs, confirm outcomes, the mock server's booking logic |
+| `pnpm test` | 75 booking unit tests (Vitest): time zones, slot rule, availability, two clocks, group runs, confirm outcomes, the mock server's booking logic |
 | `pnpm e2e` | 15 booking flows in Playwright (14 desktop, 1 phone) against a production build, plus the shell smoke test |
 | `pnpm check` | Typecheck, lint and unit tests |
 
@@ -51,10 +51,10 @@ The failures are driven from the **Mock API** button in the header. Its **Demo d
 
 | # | Requirement | Where / how |
 | --- | --- | --- |
-| 1 | 90-day calendar; past, closed (weekly or closure) and full days visibly unavailable, with the reason | `BookingCalendar`. Every day's accessible name includes its reason ("Closed on Sundays", "Closed: Public holiday", "Fully booked", "No 3 back-to-back times", "In the past", "Bookings open 90 days ahead"). Sighted customers see it on hover or tap, in the line under the grid. Closed days are hatched and full days struck through, so colour isn't the only signal. There's a legend. |
+| 1 | 90-day calendar; past, closed (weekly or closure) and full days visibly unavailable, with the reason | `BookingCalendar`. Every day's accessible name includes its reason ("Closed on Sundays", "Closed: Public holiday", "Fully booked", "No 3 back-to-back times", "Outside opening hours", "In the past", "Bookings open 90 days ahead"). Sighted customers see it on hover or tap, in the line under the grid; on a day when the specialist's hours miss opening hours altogether, the day's tooltip gives the full sentence. Closed days are hatched, days with no free times struck through, and past days and days beyond the window faded, so colour isn't the only signal. A legend names each. |
 | 2 | Two clocks: provider's time first, the customer's alongside, never confusing | [Two clocks](#two-clocks) |
 | 3 | Slots grouped (morning, afternoon, evening); booked ones visible but not selectable | `SlotListbox`. One listbox per specialist, with period groups. Booked times are struck through and labelled "Booked". |
-| 4 | Today: slots that have started are unavailable, by the provider's clock | The server's clock, sent with every response, decides "now"; it is read on the provider's wall clock and re-checked every minute while the page is open. [Today and the edges of the day](#today-and-the-edges-of-the-day) |
+| 4 | Today: slots that have started are unavailable, by the provider's clock | The server's clock, sent with the provider, slots and availability responses, decides "now"; it is read on the provider's wall clock and re-checked every minute while the page is open. [Today and the edges of the day](#today-and-the-edges-of-the-day) |
 | 5 | Specialists narrow the slots; consultation hours outside opening hours are explained | `SpecialistPicker` (each card shows the specialist's hours and next free day). Under the slots: "Dr. N. Rana sees patients 6:00 PM – 9:00 PM, but the provider closes at 8:00 PM on Mondays, so only 6:00 PM – 8:00 PM can be booked." |
 | 6 | Group bookings: up to 4 people, N consecutive free slots with the same specialist; only possible starts offered | [Group bookings](#group-bookings-and-buffers) |
 | 7 | 409: keep everything, explain, offer the closest alternatives | [Confirming safely](#confirming-safely) |
@@ -86,11 +86,11 @@ The failures are driven from the **Mock API** button in the header. Its **Demo d
 
 The note is shown wherever we *interpreted* the value, so a customer (or support) can spot it if we read it wrong.
 
-Two details:
+Three details:
 
 - **ICU reports `Asia/Kathmandu` as `Asia/Katmandu`**, its canonical name. Comparisons map it back to the modern spelling.
 - **A zone's city isn't the provider's location.** Lumbini Polyclinic is on "Asia/Kathmandu" but isn't in Kathmandu, and the data only has a country. So a provider's clock is named by its country ("Nepal time", "Thailand time", "India time") whenever it's that country's zone, and by the zone's own name otherwise. The customer's clock keeps its city ("your Kathmandu time"): that comes from their own device.
-- **Offsets aren't timeless.** Nepal was UTC+5:30 until 1986. So offsets are always computed for a real moment (the slot's own date), never for "epoch 0".
+- **Offsets aren't timeless.** Nepal was UTC+5:30 until 1986. So offsets are always computed for a real moment, never for "epoch 0": each slot's own date for the second clock, and today when reading an offset a provider typed in.
 
 ## Two clocks
 
@@ -99,7 +99,7 @@ Two details:
   - Under them, in bold: **All times are Thailand time**, the time at Riverside International Hospital. Thailand is 1 h 15 min ahead of you; your Kathmandu time is shown under each one.
 - **Every bookable time chip has both.** "10:40 AM", then a person icon and "9:25 AM". A screen reader hears "10:40 AM Thailand time, 9:25 AM your time in Kathmandu" (booked and started chips say "Booked" or "Started" visually; their spoken name still has both times).
 - **The day can differ.** For a customer in Bangkok, Aravali's 11:00 PM (India) is "12:30 AM · next day". Summaries spell it out: "12:30 AM, Sat 21 Nov your time".
-- **One clock when one is enough.** If the customer's clock reads the same as the provider's (a Kathmandu customer at Lumbini), the second clock is hidden and the page says so: "Nepal time is the same as yours".
+- **One clock when one is enough.** If the customer's clock reads the same as the provider's (a Kathmandu customer at Lumbini), each time is shown once, without a second "your time" under it, and the page says so: "Nepal time is the same as yours". Both clocks stay at the top.
 - **The customer's zone is changeable.** It's detected from the device. Someone planning from abroad can pick another from the list (all IANA zones); it applies as they move through the list, **Done** closes it and returns focus to **Change**, and the choice is remembered.
 - **Daylight saving is handled per slot.** The customer's time is computed for each slot's own date, so a London customer sees the right time on both sides of 25 October.
 - **The confirmation page** repeats it: "Please arrive by Thailand time. Your phone may show a different time if it's still set to Kathmandu."
@@ -112,7 +112,7 @@ Two details:
   - The calendar starts on the provider's today, and the 90-day window is that day plus 89 (today counts as day 1).
   - The provider's today is part of the calendar's cache key, so a page left open past the provider's midnight moves the window on by itself.
 - **"Now" comes from the server, not the device.**
-  - Every response carries the server's time (`now`). The client keeps its offset from the device clock, so a wrong device clock doesn't matter.
+  - The provider, slots and availability responses carry the server's time (`now`). The client keeps its offset from the device clock, so a wrong device clock doesn't matter. Until one of them has arrived (the provider list on `/book`), the device clock stands in.
   - A slot that has *started* by the provider's clock is unavailable ("Started"). This is re-evaluated each minute while the page is open, so a slot can't be booked after it starts just because the page was loaded earlier.
   - The server checks it again when booking (409 `SLOT_UNAVAILABLE`).
 - **Late-evening slots** (Aravali 9:00–11:30 PM IST, Lumbini 8:00–10:30 PM NPT) are "evening" on the provider's clock and say "next day" for customers far enough east: Aravali's from Bangkok, Lumbini's from Tokyo.
@@ -163,7 +163,7 @@ Two details:
 
 ## States
 
-- **Loading:** skeletons shaped like the page, the calendar and the slot grid. After 2.5 s they add "Still loading. The connection seems slow…"; offline, they say straight away "You're offline. This will load as soon as you're back online."
+- **Loading:** skeletons shaped like the page, the calendar and the slot grid. After 2.5 s the calendar and slot-grid skeletons add "Still loading. The connection seems slow…"; offline, they say straight away "You're offline. This will load as soon as you're back online."
 - **Updating:** changing the specialist or group size keeps the old calendar on screen, faded, with "Updating…", instead of flashing skeletons.
 - **A day with nothing to book:** one sentence on why, then a way forward:
   - closed on Sundays, a closure ("Reason given: Public holiday."), fully booked, today over, or no run long enough for the group;
@@ -186,8 +186,21 @@ Two details:
   - Choosing a time is announced: "Chosen: 10:40 AM Thailand time, 9:25 AM your time, with Dr. A. Wongsakul." When the customer's date differs, it's included ("12:30 AM, Sat 24 Oct your time").
 - **Pickers:** specialists and group size are native radio groups with legends.
 - **Focus:** after a 409 or an unknown result, focus moves to the message. After choosing an alternative, focus moves to the confirm button.
-- **Phones:** once a time is chosen, a sticky bar shows it (both clocks) with **Review**, hidden while the summary is on screen. Touch targets are at least 44 px on touch screens, small buttons included.
-- Contrast is AA in both themes. Reduced motion is respected.
+- **Phones:** once a time is chosen, a sticky bar shows it (both clocks) with **Review**, hidden while the summary is on screen. Buttons and options are at least 44 px on touch screens, small buttons included. Calendar days are 44 px tall but narrower on small phones (about 30 px on a 320 px screen), above WCAG 2.2's 24 px minimum.
+- Contrast is AA in both themes, and focus rings are at least 3:1. Reduced motion is respected.
+
+## Stack and why
+
+| Concern | Choice | Why |
+| --- | --- | --- |
+| Framework | **Next.js 16** (App Router), React 19, TypeScript | MedEx's stack. Route handlers make the mock API with no extra tooling. |
+| Dates and time zones | **No date library:** `Intl.DateTimeFormat` with IANA zones, plus plain values (`"2026-10-27"`, minutes after midnight) | The data is wall-clock times at the provider. Plain values can't drift into the device's zone the way a JavaScript `Date` can, and `Intl` already knows every zone and its history. |
+| UI | **shadcn/ui** on Radix + **Tailwind CSS 4** | Accessible primitives (dialogs, popovers, focus handling) whose code we own. The calendar and the time grid are hand-built ARIA widgets (a grid and listboxes), so the two clocks, the reasons and the keyboard model fit exactly. |
+| Server state | **TanStack Query** | Caching, retries, offline pausing, and keeping the old calendar on screen while a new one loads. |
+| The customer's choices | **React Hook Form**, mirrored into the URL | A form, submitted once. In the URL, a reload, a failed request or a 409 never loses it. |
+| Client state | **Zustand** | Small stores read outside React: the server-clock offset, the customer's zone, an unanswered confirm. |
+| Validation | **Zod** | Lenient parsing of API responses at the boundary. |
+| Tests | **Vitest**, **Playwright** | Unit tests for the time-zone and slot logic; browser tests for the flows. |
 
 ## Architecture
 
@@ -245,11 +258,14 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
 | Five of six time zones aren't clean IANA names (see the [table](#every-time-zone-in-the-file)) | Read as described; a note where we interpreted |
 | **`existingBooking` isn't in `bookedSlots`** | Its slot is still occupied: occupancy is computed from the bookings themselves, not only from `bookedSlots` |
 | **`existingBooking` can land on a day the provider is closed.** It's `dayOffset: 3` from Riverside's today, so whenever today is a Thursday it falls on a Sunday. | The booking still stands. The reschedule page says "Your current appointment is on Sunday, 25 October 2026, but Riverside International Hospital's listed hours say it's closed that day. Your booking still stands; you may want to move it or check with them." |
-| **Dr. N. Rana (6–9 PM) works past closing**: 8 PM Mon–Thu, 5 PM Fri, 1 PM Sat | 6:00–7:40 PM bookable Mon–Thu; nothing Fri/Sat; explained on each day |
+| **Dr. N. Rana (6–9 PM) works past closing**: 8 PM Mon–Thu, 5 PM Fri, 1 PM Sat | 6:00–7:40 PM bookable Mon–Thu; nothing Fri/Sat. Each day says why: under the time grid, and in the calendar, where those days say "Outside opening hours" and their tooltip gives the full sentence ("…but on Fridays the provider is only open 8:00 AM – 5:00 PM, so there are no times to book.") |
 | **Dr. P. Chaiyaporn (7 AM–12 PM) starts before opening** (8 AM; 9 AM Sat) | The 7:00 slot (and 8:00 on Saturdays) isn't offered; explained |
 | **Late-evening hours** cross midnight for customers far enough east of the provider | "next day" on the second clock |
 | `dayOffset`s count from each **provider's** today, which differs between providers near midnight | Converted per provider at server start |
-| The booked slots are all on their specialist's grid, with no duplicates (checked) | — |
+| **Three bookings at 7:00 AM with Dr. Chaiyaporn** (`dayOffset` 2, 9 and 15), before Riverside opens | Ignored: 7:00 is never offered, so they block nothing. A real system would flag them for the hospital to check |
+| **14 bookings on closure days**: 10 at Himal Neo Clinic on its "Staff training day" (`dayOffset` 4), 4 at Riverside on its public holiday (`dayOffset` 12) | The closure wins: the day shows as closed, with its reason. Those bookings are left for the provider to sort out with the customers |
+| **Booked slots only cover the first 30 days** (`dayOffset` 0–29) | Days 30–89 look wide open. Fine for a fixture, and nothing in the code assumes it |
+| Otherwise the booked slots are all on their specialist's grid, with no duplicates (checked) | — |
 
 ## Assumptions
 
@@ -266,11 +282,12 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
 - **An "Add to calendar" (.ics) file** with the provider's `TZID`, so the customer's phone shows it correctly wherever they are.
 - **Cross-tab locking for an unanswered booking.** It's per tab (sessionStorage). A second tab could book a different time while the first is unresolved; Task 2's Web Locks runner would cover it.
 - **Cancelling**, and choosing a different specialist when rescheduling (needs API support).
+- **A specialist with nothing in the 90 days** says so, but not why (fully booked, or hours that never meet opening hours), and when rescheduling, which keeps the specialist, it has no way forward to offer. No specialist in the fixture is in this state.
 - **Showing slots as the server lists them, not re-deriving them.** The client shares the server's slot rule, so they always agree here. Against a real API, the slot list from `/slots` should be the source of truth for which slots exist, and the client rule only used to explain.
 
 ## Tests
 
-- **Unit (74 booking tests, plus 7 shared money tests):**
+- **Unit (75 booking tests, plus 7 shared money tests):**
   - `timezone.test.ts` (21):
     - every stored value in the file;
     - offsets in every spelling, matched to the country or kept fixed;
@@ -284,7 +301,7 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
     - group runs with buffers and gaps;
     - periods;
     - the explanations for hours that aren't offered.
-  - `availability.test.ts` (7): every day status, started slots by the provider's clock, a reschedule's own slots.
+  - `availability.test.ts` (8): every day status, started slots by the provider's clock, a reschedule's own slots (including ones that have already started).
   - `two-clocks.test.ts` (7): Bangkok on a Kathmandu clock, next/previous day, a fixed +05:45 equal to Kathmandu, DST by slot date.
   - `logic.test.ts` (14, mock server):
     - group bookings;
@@ -295,7 +312,7 @@ components/  booking-flow (one flow for book + reschedule) · booking-calendar �
   - `confirm.test.ts` (4): taken, failed and unknown, and a re-check that stays unknown until the server decides.
   - `day-view.test.ts` (5): what's wrong with the chosen time, and no alternatives until the slots are fresh.
   - `alternatives.test.ts`, `selection.test.ts`.
-- **E2E (15 booking flows):** [`e2e/booking.spec.ts`](../e2e/booking.spec.ts) (14) and the phone flow cover every scenario in the table at the top, against a production build. Two bugs were found this way and fixed:
+- **E2E (15 booking flows):** [`e2e/booking.spec.ts`](../e2e/booking.spec.ts) covers every scenario in the table at the top, against a production build, one flow on a phone-sized screen. They share the mock server's single booking store, so they run one at a time. Two bugs were found this way and fixed:
   - a date past the 90-day window was bookable on the server;
   - a calendar day focused by a screen reader's cursor didn't become the active day.
 
@@ -310,6 +327,17 @@ An independent review pass (a second agent given the code and the brief, not my 
 - After a reload, an unanswered booking's own slot was called "booked by someone else", and a 409 from **Check now** offered no alternatives.
 - The "Chosen" announcement dropped "next day"; the calendar's today went stale at the provider's midnight; offline loading said "slow"; some wording overstated what happened; small buttons were under 44 px on touch; a DST comment was wrong.
 
+### Found in a final check against the brief
+
+Before submitting, the app was checked line by line against the brief (an agent per exercise, each finding then verified by hand). Fixed:
+
+- **A flaky e2e test.** The phone flow ran in parallel with the others and reset the shared booking store mid-test; in the provider's evening both picked the same slot. It now runs in the same one-at-a-time suite.
+- **The calendar's key called four different reasons "Fully booked"**, and a day where the specialist's hours miss opening hours altogether said only "No consultation hours". The key now says "No free times", faded days have their own entry, and those days say "Outside opening hours", with the full sentence in their tooltip.
+- **Right after a 409, the Book button was enabled** for the taken time until the times reloaded (the server would have refused it again). It now waits for the fresh times.
+- **Rescheduling a group booking that's in progress today** could offer its own started slot as the new start, and the server accepted it (unit test).
+- **Extra-small buttons were 24 px on touch screens, and focus rings on native controls were about 2:1.** They're now 44 px and at least 3:1 (shared foundation).
+- **This README:** statements that had drifted from the code, and three data mistakes it hadn't listed.
+
 ## AI tools
 
 This exercise was built with **Claude Code** (Anthropic's AI coding agent) working under my direction:
@@ -320,6 +348,7 @@ This exercise was built with **Claude Code** (Anthropic's AI coding agent) worki
   - designed and implemented the time-zone handling, the mock API, the domain logic and the UI;
   - wrote the unit and e2e tests;
   - drove a headless browser to check each state at desktop and phone sizes, in both themes;
-  - drafted this README.
+  - drafted this README;
+  - checked the finished app against the brief and fixed what it found ([Found in a final check against the brief](#found-in-a-final-check-against-the-brief)).
 
 <!-- TODO(author): describe your own review/changes here before submitting. -->

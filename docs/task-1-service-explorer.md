@@ -10,7 +10,7 @@ This is a Next.js 16 page where customers browse 3,200 services from 67 provider
 - side-by-side comparison of providers,
 - a report of every data-quality decision made.
 
-> This is the README of the `task-1-service-explorer` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: Nothing in this exercise changed. (On phones the header's links now sit on a row of their own, since all three exercises share it.)
+> This is the README of the `task-1-service-explorer` branch, where this exercise lives on its own on top of the shared foundation from `main`. On `dev` all three exercises run in one app and it applies as written, except: `pnpm test` and `pnpm e2e` run every exercise's tests (see the main [README](../README.md)), and the header's animated logo loops even when the device asks for reduced motion. The shared error page offers **Go to the home page** rather than a new search, and on phones the header's links sit on a row of their own.
 
 ---
 
@@ -26,7 +26,7 @@ You need Node 20.9+ and pnpm 10.
 | --- | --- |
 | `pnpm dev` | Dev server |
 | `pnpm build && pnpm start` | Production build. Use this for anything performance-related. |
-| `pnpm test` | 66 unit tests (Vitest): pricing, data cleaning, URL codec, location tree, facet engine |
+| `pnpm test` | 69 unit tests (Vitest): pricing, data cleaning, URL codec, location tree, facet engine, the discount badge |
 | `pnpm e2e` | 15 Playwright flows against a production build |
 | `pnpm perf` | Performance budget check: filter → paint, keystroke → paint, layout shift |
 | `pnpm check` | Typecheck, lint and unit tests |
@@ -50,6 +50,7 @@ The settings persist across reloads, so you can break the services endpoint and 
 | Error + retry | `GET /api/service` → "Fail always", reload. Set it back to "Works" and press **Try again**. |
 | Offline | "Simulate offline", then reload. Switch it off and the page loads by itself. |
 | Empty | [`/services?type=insurance&city=NP.pokhara&home=1`](http://localhost:3000/services?type=insurance&city=NP.pokhara&home=1) |
+| Partial failure | `GET /api/providers` → **Fail always**, then reload. The page says "We couldn't load the providers. Everything else is ready, so only that will be fetched again", and **Try again** fetches only that. |
 | Partial data | The **Data quality report** link under the results lists what was hidden or adjusted, and why. |
 | Unexpected crash | Caught by `app/error.tsx`, which shows a calm message, **Try again** and a link to a new search. The filters survive, because they're in the URL. |
 | The story | [`/services?type=package&city=TH.bangkok&currency=THB&max=5000`](http://localhost:3000/services?type=package&city=TH.bangkok&currency=THB&max=5000) |
@@ -76,6 +77,19 @@ You can also break endpoints from curl: `curl 'localhost:3000/api/service?_fail=
 
 ---
 
+## Stack and why
+
+| Concern | Choice | Why |
+| --- | --- | --- |
+| Framework | **Next.js 16** (App Router, Cache Components, React Compiler), React 19, TypeScript | MedEx's stack. Route handlers serve the three mock endpoints, and the compiler skips re-rendering what didn't change while the customer types. |
+| UI | **shadcn/ui** on Radix + **Tailwind CSS 4**, with native inputs where dozens render together | Accessible dialogs, popovers and the drawer, with code we own. The ~60 facet checkboxes and the price slider are native inputs: profiling showed scripted ones were far slower. |
+| View state | **The URL**, through one codec (`url-state.ts`) | The brief makes it the source of truth. One canonical form means one copy of the state. |
+| Server state | **TanStack Query** | Three parallel requests, retrying only what failed, paused while offline. |
+| Client state | **Zustand** | The compare selection and the Mock API settings: read outside React and kept across reloads. |
+| Forms | **React Hook Form** + **Zod** | The mobile drawer's pending filters, and validating the price inputs. |
+| Money | **big.js** | Exact decimals: floats round some of the data's half-cent prices the wrong way. |
+| Tests | **Vitest**, **Playwright** | Unit tests for pricing, the URL codec and the facet engine; browser tests for the flows, plus a performance budget. |
+
 ## Architecture
 
 ```
@@ -95,12 +109,14 @@ URL ── domain/url-state.ts ── filters ────────┘──�
 UI: FilterPanel (controlled) · ResultsList · MobileFilterDrawer (RHF draft) · Compare
 ```
 
-Everything in `domain/` is pure TypeScript with no React, which keeps it easy to test and to reuse. A teammate adding a filter touches four places:
+Everything in `domain/` is pure TypeScript with no React, which keeps it easy to test and to reuse. A teammate adding a filter works through these, and TypeScript flags the places that must list every filter (the defaults, `clearFacet`, `withoutFacet`, the empty-state labels):
 
-1. a field on `ExplorerFilters`,
-2. a parameter in `url-state.ts`,
-3. one `case` in each of `passes()` and `countFacet()` in the engine,
-4. a facet component.
+1. `filters.ts`: a field on `ExplorerFilters` and its default; if it can be removed on its own, a `FacetId` with its cases in `clearFacet` and `activeFacets`;
+2. `url-state.ts`: its URL parameter, and `sanitizeFilters` if a stored value can go stale;
+3. `engine.ts`: a dimension, with one `case` in each of `passes()` and `countFacet()`, its counts in `Facets`, and its `withoutFacet` entry;
+4. the UI: a facet component, its chip label and its empty-state suggestion.
+
+The mobile drawer picks up every filter by itself.
 
 ### Where state lives
 
@@ -142,11 +158,11 @@ That is O(services × dimensions), about 1 ms for 3,200 services, and correct wi
 
 The same pass also gives `withoutFacet` counts ("results if you removed the price filter"). The empty state uses them to offer specific ways out with numbers attached.
 
-**How I know it's right:** `engine.test.ts` brute-forces the defining property on the real data. For every option of every facet, across 14 filter combinations (12 of them random but reproducible), the displayed count must equal the result count you actually get by selecting that option. The e2e test does the same thing through the UI.
+**How I know it's right:** `engine.test.ts` brute-forces the defining property on the real data. For every service type, category, country, city, provider and currency, and the home-test option, across 14 filter combinations (12 of them random but reproducible), the displayed count must equal the result count you actually get by selecting that option. (Subcategories aren't in the brute force; they have their own tests.) An e2e test checks the same property through the UI.
 
 ### Zero-count options: disabled, not hidden
 
-- **No layout shift.** The lists don't reflow under the cursor as other filters change. With disjunctive counts, the facet you're clicking never changes its own counts, so focus never lands on an option that disappears.
+- **No layout shift.** The type, category and location lists keep their order and length as other filters change, so nothing moves under the cursor. With disjunctive counts, the facet you're clicking never changes its own counts, so focus never lands on an option that disappears. The provider list is the exception: with 64 providers and six shown until it's expanded, it puts the chosen ones first and then those with results, so it does reorder.
 - **The customer still learns what exists.** "Wellness 0" in Pokhara is information. A vanishing option is a mystery.
 - **A selected option stays enabled even at zero**, so it can always be unticked. The empty state also offers to remove it.
 - **One exception:** a provider with no visible services at all (Golden Mile International Hospital) is left out of the provider list entirely, since it could only ever lead to an empty page.
@@ -169,6 +185,7 @@ There are no exchange rates, so a price range only means something inside one cu
 - **The struck-through price is like-for-like.** It shows what you'd pay *without the discount*: list price plus the service charge on it.
   - Striking through the raw `price` would be misleading. 31 visible services (39 in the file) have a discount *and* a service charge where the final price is **higher** than `price`, e.g. 8,760.00 → 8,934.00.
   - An ⓘ popover shows the full breakdown (price, discount, service charge, you pay).
+  - The badge beside it agrees with the two prices shown: "30% off" when they're 30% apart. With a fixed service charge they aren't (a 30% discount plus THB 233 makes THB 6,193.00 → 4,405.00), so it says how much less you pay: "THB 1,788.00 off".
 - **"Free":** a 0.00 price shows as "Free", not as missing.
 - **Wellness:**
   - shows "from THB 1,800.00 · for 60 min · 3 durations", with a popover listing every duration;
@@ -191,7 +208,7 @@ There are no exchange rates, so a price range only means something inside one cu
 ### Search
 
 - **Word-prefix matching** on normalised text (case, accents, punctuation): "thyr" finds "Thyroid", but "hyroid" doesn't match the middle of a word.
-- **Hyphenated words are indexed both ways**, so "check-up", "check up" and "checkup" are equivalent.
+- **Compound words match however they're written.** Hyphenated words are indexed split and joined, and so is each pair of neighbouring words, so "check-up", "check up" and "checkup" all find both the "Check-Up" titles and the "Health Check Up" category.
 - **Searched fields:** service title, provider name, category and subcategory.
 - **Every word must match** somewhere.
 
@@ -283,9 +300,9 @@ During the work I also used Chrome traces and CPU profiles (`next build --no-man
 
 | | 1× (this laptop) | 2× slower CPU | 4× slower CPU |
 | --- | --- | --- | --- |
-| Filter → results painted (5 different filters) | 33–61 ms | 58–119 ms | 110–259 ms |
+| Filter → results painted (5 different filters) | 33–68 ms | 61–122 ms | 108–259 ms |
 | Worst keystroke → next paint | 32 ms | 32 ms | 96 ms |
-| Keystrokes over 50 ms (of ~100) | 0 | 0 | 2 |
+| Keystrokes over 50 ms (of ~100) | 0 | 0 | 1 |
 | CLS (layout shift not caused by input) | 0.000 | 0.000 | 0.000 |
 
 The checkbox itself paints its new state in about 3 ms, because it's a native control. The rest of the time is React rendering in 5 ms slices (Next.js runs `pushState` updates as a transition), plus layout and paint.
@@ -321,8 +338,8 @@ The checkbox itself paints its new state in about 3 ms, because it's a native co
 - The struck-through amounts and icons are hidden from assistive tech.
 
 **Contrast and touch**
-- Text meets WCAG AA (4.5:1) in light and dark. The ratios are noted in `globals.css`.
-- Touch targets are 44 px on touch screens.
+- Text meets WCAG AA (4.5:1) in light and dark. The ratios are noted in `globals.css`. Focus rings are at least 3:1.
+- Touch targets are 44 px on touch screens, the small ⓘ and **Clear** buttons included.
 - `prefers-reduced-motion` is respected.
 - A skip link is provided.
 
@@ -348,18 +365,31 @@ The checkbox itself paints its new state in about 3 ms, because it's a native co
 - **A real screen-reader pass,** and an axe check wired into the e2e suite.
 - **Data quality upstream:** the issues listed in the report would make a good provider-facing "fix your listing" queue.
 - **Visual regression tests** for the card and price states.
+- **Two screen-reader details:** the drawer's "Show N results" count is read when the button is focused rather than announced as it changes, and after **Try again** succeeds nothing takes focus.
 
 ## Tests
 
-- **Unit tests (Vitest, 66):**
+- **Unit tests (Vitest, 69):**
   - the price formula and its edge cases (negative, free, unparseable, mid-calculation rounding, like-for-like strike price);
   - catalog cleaning against the real data (visibility counts, ultrasound and thyroid keys, unrated providers, malformed records);
   - the URL codec (round-trip, canonical form, junk tolerance, stale-value sanitising, emoji-safe truncation);
   - the country/city tree (absorbing, splitting and collapsing selections);
   - the engine (brute-force facet counts, ultrasound, price filter across currencies and wellness durations, sorting, search, empty-state counts, pagination);
+  - the discount badge (it must agree with the two prices shown);
   - money formatting and rounding.
 - **E2E (Playwright, 15):** see [`e2e/explorer.spec.ts`](../e2e/explorer.spec.ts) and [`e2e/mobile.spec.ts`](../e2e/mobile.spec.ts). Plus `pnpm perf`.
   - Five of them are regression tests for issues found in a code review: lost clicks under CPU throttling, the search dropped by a quick sort, chip-removal focus, unnamed filter groups, and a long search with an emoji crashing the page.
+
+### Found in a final check against the brief
+
+Before submitting, the app was checked line by line against the brief (an agent per exercise, each finding then verified by hand). Fixed:
+
+- **"checkup" and "check-up" missed the "Health Check Up" category**, which is written as two words: 232 results instead of 253 for the story's own wording. Neighbouring words are now also indexed joined (unit test).
+- **"30% off" sat next to prices 28.9% apart.** With a percentage discount and a fixed service charge (231 of the 1,515 discounted prices), the badge and the struck-through price didn't agree. The badge now gives the difference when the percentage doesn't match (unit tests).
+- **The mobile drawer listed the filters by hand**, so a new filter would compile but be ignored there. It now takes them from the defaults.
+- **The brute-force facet test checked 6 sample providers.** It now checks all of them.
+- **Extra-small buttons (ⓘ, Clear) were 24 px on touch screens, and focus rings on native checkboxes, radios and slider thumbs were about 2:1.** They're now 44 px and at least 3:1 (shared foundation).
+- **This README:** statements that had drifted from the code, and how to see the partial-failure state.
 
 ## AI tools
 
@@ -372,7 +402,8 @@ This exercise was built with **Claude Code** (Anthropic's AI coding agent) worki
   - wrote the code, unit tests and e2e tests,
   - drove a headless browser to check each state,
   - profiled and optimised the performance,
-  - drafted this README.
+  - drafted this README;
+  - checked the finished app against the brief and fixed what it found ([Found in a final check against the brief](#found-in-a-final-check-against-the-brief)).
 - **A second agent** reviewed the finished code adversarially. Its 10 findings were verified and fixed, each with a regression test where one could be written:
   - stale-state URL writes losing clicks,
   - an emoji truncation crash,

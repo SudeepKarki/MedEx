@@ -22,8 +22,8 @@ Requires Node 20.9+ and pnpm 10.
 | --- | --- |
 | `pnpm dev` | Next.js dev server (Turbopack) |
 | `pnpm build && pnpm start` | Production build |
-| `pnpm test` | All 179 unit tests: 59 for Task 1, 39 for Task 2, 74 for Task 3, and 7 shared money tests |
-| `pnpm e2e` | All 47 Playwright flows against one production build: 15 for Task 1, 16 for Task 2, 15 for Task 3, and the shell smoke test. The suites run in parallel. |
+| `pnpm test` | All 183 unit tests: 62 for Task 1, 39 for Task 2, 75 for Task 3, and 7 shared money tests |
+| `pnpm e2e` | All 49 Playwright flows against one production build: 15 for Task 1, 18 for Task 2, 15 for Task 3, and the shell smoke test. The suites run in parallel. |
 | `pnpm perf` | Task 1's performance budget checks, run on their own |
 | `pnpm check` | Typecheck, lint and unit tests together |
 
@@ -37,7 +37,8 @@ The exercises were built separately, so a few things collided once they shared o
 - **`POST /api/demo/reset`** existed in Tasks 2 and 3. It now takes **`?scope=cart`** or **`?scope=booking`** (no scope resets both). Each exercise's **Reset demo** action and e2e suite reset only their own data, so the suites can run side by side.
 - **The header** lists every exercise. On phones the links get a row of their own below the bar: with everything in one row the bar was about 480 px wide, which made phones zoom the whole page out. That row scrolls with the page, so the sticky bar keeps its height.
 - **Shared files** (the Mock API panel, its protocol, the error page, the e2e helpers) take `main`'s newest versions, which already include what each exercise needed.
-- Running everything together also exposed one exercise bug, fixed on its own branch and merged again: Task 3's two clocks didn't fit on a 320 px phone.
+- **An animated MedEx logo** in the header (from the `Logo` branch, so only here). It loops as it does on medex.co, even when the device asks for reduced motion: a deliberate trade-off against WCAG 2.2.2, which asks for a way to pause endless motion.
+- Bugs found here were fixed on their own branch and merged again: Task 3's two clocks didn't fit on a 320 px phone, and Task 3's phone e2e flow could collide with the other booking flows when they ran side by side (they share one booking store).
 
 ## Stack and why
 
@@ -96,9 +97,9 @@ Two more panel features:
 
 - Skip link.
 - One pair of live regions for screen-reader announcements, mounted once so their updates are always announced.
-- Visible focus rings.
+- Visible focus rings, at least 3:1 against the page.
 - 44 px touch targets on touch screens.
-- `prefers-reduced-motion` respected.
+- `prefers-reduced-motion` respected, except by the header logo (see above).
 - AA colour contrast in light and dark themes (ratios are noted in `globals.css`).
 - `app/error.tsx` turns any unexpected render error into a recoverable message instead of a blank page.
 
@@ -117,5 +118,6 @@ This was built with **Claude Code** (Anthropic's AI coding agent) working under 
 
 - **I chose:** the stack (Next.js, shadcn/ui, Tailwind, Zustand, React Hook Form), the branch-per-task structure, and to merge everything into `dev`.
 - **The agent:** wrote the foundation, the three exercises and their tests; did this merge and resolved its conflicts; and ran every test suite on the merged app. Each exercise's README says where AI was used for it.
+- **Before submitting,** agents checked each exercise line by line against its brief, and each finding was verified before it was fixed. Each exercise's README lists them under "Found in a final check against the brief".
 
 <!-- TODO(author): describe your own review/changes here before submitting. -->
